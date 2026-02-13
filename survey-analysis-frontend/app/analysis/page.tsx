@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAppStore, type AnalysisTab } from "@/lib/store";
 import { ingestion, quality } from "@/lib/api";
-import type { SurveySchema } from "@/types";
 import { cn } from "@/lib/utils";
 
 // Tab components
@@ -37,9 +36,9 @@ export default function AnalysisPage() {
     toggleQualityFilter,
     setSubmissions,
     setQualityScores,
+    surveys,
+    setSurveys,
   } = useAppStore();
-
-  const [surveys, setSurveys] = useState<SurveySchema[]>([]);
 
   // Load survey list
   useEffect(() => {

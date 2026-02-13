@@ -120,6 +120,13 @@ export interface UploadResult {
   valid_records: number;
 }
 
+export interface AutoIngestResult {
+  status: string;
+  schema: SurveySchema;
+  total_records: number;
+  valid_records: number;
+}
+
 export interface QualityBatchResult {
   scored: number;
   grades: {
