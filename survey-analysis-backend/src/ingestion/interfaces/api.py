@@ -197,6 +197,97 @@ class IngestionService:
     async def get_submission(self, submission_id: UUID) -> SubmissionRecord | None:
         return await self._repo.get_submission(submission_id)
 
+    async def auto_ingest(self, file: UploadFile) -> dict:
+        """
+        Upload-first flow: parse file, infer a schema from the data, create it,
+        then ingest all records against it. Returns the new schema + ingestion stats.
+        """
+        raw_records = await parse_upload(file)
+        if not raw_records:
+            raise ValueError("File contains no records")
+
+        # Derive title from filename (strip extension)
+        filename = file.filename or "Untitled Survey"
+        title = filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").strip()
+        if not title:
+            title = "Untitled Survey"
+
+        # Reserved fields that are metadata, not survey questions
+        reserved = {"started_at", "completed_at", "received_at", "id", "submission_id"}
+
+        # Infer question definitions from the data
+        from src.ingestion.internals.version_detector import _infer_data_type
+
+        all_fields: set[str] = set()
+        for record in raw_records:
+            all_fields.update(record.keys())
+
+        question_defs: list[QuestionDefinition] = []
+        for field_name in sorted(all_fields - reserved):
+            inferred_type = _infer_data_type(field_name, raw_records) or "NOMINAL"
+            question_defs.append(QuestionDefinition(
+                question_id=field_name,
+                text=field_name.replace("_", " ").title(),
+                data_type=inferred_type,
+            ))
+
+        # Create the schema
+        schema = SurveySchemaRecord(
+            title=title,
+            version_id=1,
+            question_definitions=question_defs,
+        )
+        await self._repo.save_survey_schema(schema)
+        logger.info(
+            "Auto-created schema '%s' with %d questions from %s",
+            title, len(question_defs), filename,
+        )
+
+        # Ingest records against the new schema
+        submissions: list[SubmissionRecord] = []
+        invalid_count = 0
+        is_csv = (file.filename or "").lower().endswith(".csv")
+
+        for record in raw_records:
+            is_valid = validate_structure(record, schema.id)
+            started_at = _parse_timestamp(record.pop("started_at", None))
+            completed_at = _parse_timestamp(record.pop("completed_at", None))
+            submission = SubmissionRecord(
+                survey_schema_id=schema.id,
+                raw_responses=record,
+                source_format="CSV" if is_csv else "JSON",
+                started_at=started_at,
+                completed_at=completed_at,
+                is_valid=is_valid,
+            )
+            submissions.append(submission)
+            if not is_valid:
+                invalid_count += 1
+
+        await self._repo.save_submissions(submissions)
+
+        status = (
+            IngestionStatus.SUCCESS if invalid_count == 0
+            else IngestionStatus.PARTIAL
+        )
+        await self._repo.log_ingestion(
+            survey_schema_id=schema.id,
+            records_received=len(raw_records),
+            records_valid=len(raw_records) - invalid_count,
+            status=status,
+        )
+
+        logger.info(
+            "Auto-ingested %d records (%d valid) into schema %s",
+            len(raw_records), len(raw_records) - invalid_count, schema.id,
+        )
+
+        return {
+            "schema": schema,
+            "total_records": len(submissions),
+            "valid_records": len(submissions) - invalid_count,
+        }
+
 
 # ── Routes ────────────────────────────────────────
 
@@ -243,6 +334,23 @@ async def upload_data(
         response["new_schema_id"] = result["new_schema_id"]
         response["new_version_id"] = result["new_version_id"]
     return response
+
+
+@router.post("/auto-ingest", status_code=201)
+async def auto_ingest(
+    file: UploadFile,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Upload a file without a pre-existing schema. The system infers the schema
+    from the data columns and types, creates it, then ingests all records."""
+    service = IngestionService(session)
+    result = await service.auto_ingest(file)
+    return {
+        "status": "auto_ingested",
+        "schema": result["schema"].model_dump(mode="json"),
+        "total_records": result["total_records"],
+        "valid_records": result["valid_records"],
+    }
 
 
 @router.get("/submissions/{survey_schema_id}")
