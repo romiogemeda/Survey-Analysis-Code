@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { simulation } from "@/lib/api";
 import type { Persona, SimulatedResponse } from "@/types";
 
-export default function SimulationPage() {
+export default function SimulationTab() {
   const { activeSurvey, addToast } = useAppStore();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [responses, setResponses] = useState<SimulatedResponse[]>([]);

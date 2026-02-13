@@ -6,7 +6,7 @@ import { chat, simulation } from "@/lib/api";
 import type { ChatMessage, ChatSession, Persona } from "@/types";
 import { cn } from "@/lib/utils";
 
-export default function ChatPage() {
+export default function ChatTab() {
   const { activeSurvey, addToast } = useAppStore();
   const [session, setSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -227,26 +227,22 @@ export default function ChatPage() {
                     <p className="whitespace-pre-wrap">{msg.content}</p>
 
                     {/* Show query details for assistant messages */}
-                    {msg.executed_query ? (
-                      <div className="mt-2 text-xs opacity-70">
-                        <div className="cursor-pointer text-surface-600 hover:text-surface-800">
-                          <>📋</> Query details
-                        </div>
-                        <pre className="mt-1 font-mono text-[10px] overflow-x-auto bg-surface-50 p-2 rounded">
-                          {JSON.stringify(msg.executed_query, null, 2)}
+                    {msg.role === "ASSISTANT" && msg.executed_query && (
+                      <details className="mt-2 text-xs opacity-70">
+                        <summary className="cursor-pointer">Query details</summary>
+                        <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
+                          {JSON.stringify(msg.executed_query, null, 2) as string}
                         </pre>
-                      </div>
-                    ) : null}
-                    {msg.result_snapshot?.data ? (
-                      <div className="mt-1 text-xs opacity-70">
-                        <div className="cursor-pointer text-surface-600 hover:text-surface-800">
-                          <>📊</> Result data
-                        </div>
-                        <pre className="mt-1 font-mono text-[10px] overflow-x-auto bg-surface-50 p-2 rounded">
-                          {JSON.stringify(msg.result_snapshot.data, null, 2)}
+                      </details>
+                    )}
+                    {msg.role === "ASSISTANT" && msg.result_snapshot?.data && (
+                      <details className="mt-1 text-xs opacity-70">
+                        <summary className="cursor-pointer">Result data</summary>
+                        <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
+                          {JSON.stringify(msg.result_snapshot.data, null, 2) as string}
                         </pre>
-                      </div>
-                    ) : null}
+                      </details>
+                    )}
                   </div>
                 </div>
               ))

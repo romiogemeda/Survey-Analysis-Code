@@ -1,39 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAppStore } from "@/lib/store";
-import { ingestion, quality } from "@/lib/api";
-import type { Submission, QualityScore, QualityBatchResult } from "@/types";
+import { quality } from "@/lib/api";
+import type { QualityBatchResult } from "@/types";
 import { cn, formatDate, gradeBadgeClass } from "@/lib/utils";
 
-export default function QualityPage() {
-  const { activeSurvey, addToast } = useAppStore();
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [scores, setScores] = useState<Map<string, QualityScore>>(new Map());
+export default function QualityTab() {
+  const { activeSurvey, addToast, submissions, qualityScores, setQualityScores } = useAppStore();
+  const scores = qualityScores;
   const [batchResult, setBatchResult] = useState<QualityBatchResult | null>(null);
-  const [loading, setLoading] = useState(false);
   const [scoring, setScoring] = useState(false);
-
-  useEffect(() => {
-    if (!activeSurvey) return;
-    setLoading(true);
-    ingestion
-      .getSubmissions(activeSurvey.id, false)
-      .then((subs) => {
-        setSubmissions(subs);
-        // Load individual scores
-        subs.forEach((sub) => {
-          quality
-            .getScore(sub.id)
-            .then((score) =>
-              setScores((prev) => new Map(prev).set(sub.id, score))
-            )
-            .catch(() => {});
-        });
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [activeSurvey]);
 
   const handleScoreBatch = async () => {
     if (!activeSurvey) return;
@@ -42,15 +19,14 @@ export default function QualityPage() {
       const result = await quality.scoreBatch(activeSurvey.id);
       setBatchResult(result);
       addToast(`Scored ${result.scored} submissions`, "success");
-      // Reload scores
-      submissions.forEach((sub) => {
-        quality
-          .getScore(sub.id)
-          .then((score) =>
-            setScores((prev) => new Map(prev).set(sub.id, score))
-          )
-          .catch(() => {});
-      });
+      // Reload scores into shared store
+      const scoreMap = new Map(qualityScores);
+      await Promise.all(
+        submissions.map((sub) =>
+          quality.getScore(sub.id).then((s) => scoreMap.set(sub.id, s)).catch(() => {})
+        )
+      );
+      setQualityScores(new Map(scoreMap));
     } catch (e) {
       addToast("Scoring failed", "error");
     }

@@ -6,7 +6,7 @@ import { analytics } from "@/lib/api";
 import type { CorrelationResult, Insight, ExecutiveSummary } from "@/types";
 import { cn, formatPValue, gradeBadgeClass } from "@/lib/utils";
 
-export default function AnalyticsPage() {
+export default function AnalyticsTab() {
   const { activeSurvey, addToast } = useAppStore();
   const [correlations, setCorrelations] = useState<CorrelationResult[]>([]);
   const [insights, setInsights] = useState<Insight[]>([]);

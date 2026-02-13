@@ -131,7 +131,7 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
   );
 }
 
-export default function VisualizationPage() {
+export default function ChartsTab() {
   const { activeSurvey, addToast } = useAppStore();
   const [charts, setCharts] = useState<ChartPayload[]>([]);
   const [loading, setLoading] = useState(false);
