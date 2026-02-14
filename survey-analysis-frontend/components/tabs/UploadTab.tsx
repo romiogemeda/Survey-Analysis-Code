@@ -243,6 +243,8 @@ export default function UploadTab() {
                       ? "bg-surface-100 text-surface-500 border border-surface-300"
                       : q.data_type === "DATETIME"
                       ? "bg-cyan-50 text-cyan-700 border border-cyan-200"
+                      : q.data_type === "MULTI_SELECT"
+                      ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
                       : "bg-surface-100 text-surface-600 border border-surface-200"
                   }`}
                 >

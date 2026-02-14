@@ -29,6 +29,7 @@ class DataType(StrEnum):
     IDENTIFIER = "IDENTIFIER"
     BOOLEAN = "BOOLEAN"
     DATETIME = "DATETIME"
+    MULTI_SELECT = "MULTI_SELECT"
 
 
 class CorrelationMethod(StrEnum):

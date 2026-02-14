@@ -9,6 +9,7 @@ Chart type selection is data-driven:
 - INTERVAL → HISTOGRAM (>20 pts) or BOX_PLOT (≤20 pts), with summary stats
 - OPEN_ENDED → SENTIMENT_DONUT + WORD_FREQ_BAR (two charts per question)
 - BOOLEAN  → DONUT (two-segment)
+- MULTI_SELECT → DONUT (≤6 options) or H_BAR (7+), splits comma/semicolon values
 - IDENTIFIER → skipped (no chart)
 - DATETIME → skipped (no chart)
 """
@@ -104,6 +105,9 @@ class VisualizationService:
         if data_type == DataType.BOOLEAN:
             return [self._build_boolean(question_id, question_text, values)]
 
+        if data_type == DataType.MULTI_SELECT:
+            return [self._build_multi_select(question_id, question_text, values)]
+
         if data_type == DataType.NOMINAL:
             return [self._build_nominal(question_id, question_text, values)]
 
@@ -160,6 +164,65 @@ class VisualizationService:
             question_id=qid, question_text=text,
             data_type="BOOLEAN", chart_type="DONUT",
             labels=labels, values=counts,
+        )
+
+    # ── MULTI_SELECT ──
+
+    def _build_multi_select(
+        self, qid: str, text: str, values: list
+    ) -> ChartPayload:
+        """Split each value on comma/semicolon, count individual selections."""
+        import re as _re
+        individual: list[str] = []
+        total_respondents = 0
+        for v in values:
+            if v is None:
+                continue
+            total_respondents += 1
+            parts = _re.split(r"[,;]\s*", str(v).strip())
+            for part in parts:
+                cleaned = part.strip()
+                if cleaned:
+                    individual.append(cleaned)
+
+        if not individual:
+            return ChartPayload(
+                question_id=qid, question_text=text,
+                data_type="MULTI_SELECT", chart_type="H_BAR",
+                labels=[], values=[],
+            )
+
+        freq = Counter(individual).most_common()
+        labels = [item[0] for item in freq]
+        counts = [item[1] for item in freq]
+
+        # Choose chart type based on number of distinct options
+        n_options = len(labels)
+        chart_type = "DONUT" if n_options <= 6 else "H_BAR"
+
+        # If more than 15 options, show top 15 + Other
+        if n_options > 15:
+            top_labels = labels[:15]
+            top_counts = counts[:15]
+            other_count = sum(counts[15:])
+            if other_count > 0:
+                top_labels.append("Other")
+                top_counts.append(other_count)
+            labels = top_labels
+            counts = top_counts
+
+        return ChartPayload(
+            question_id=qid, question_text=text,
+            data_type="MULTI_SELECT", chart_type=chart_type,
+            labels=labels, values=counts,
+            metadata={
+                "total_respondents": total_respondents,
+                "total_selections": len(individual),
+                "unique_options": n_options,
+                "avg_selections_per_respondent": round(
+                    len(individual) / max(1, total_respondents), 1
+                ),
+            },
         )
 
     # ── NOMINAL ──

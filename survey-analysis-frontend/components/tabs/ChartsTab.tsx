@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { visualization } from "@/lib/api";
 import type { ChartPayload } from "@/types";
@@ -76,10 +76,7 @@ function DonutChart({ chart }: { chart: ChartPayload }) {
           </Pie>
           <Tooltip
             contentStyle={{ borderRadius: "8px", border: "1px solid #e9ecef", fontSize: "12px" }}
-            formatter={(value: unknown) => {
-              const val = Number(value);
-              return [isPercent ? `${val}%` : val, ""];
-            }}
+            formatter={(value: number) => [isPercent ? `${value}%` : value, ""]}
           />
         </PieChart>
       </ResponsiveContainer>
@@ -197,14 +194,10 @@ function LikertBarChart({ chart }: { chart: ChartPayload }) {
           />
           <Tooltip
             contentStyle={{ borderRadius: "8px", border: "1px solid #e9ecef", fontSize: "12px" }}
-            formatter={(value: unknown) => {
-              const val = Number(value);
-              const percentage = total > 0 ? Math.round((val / total) * 100) : 0;
-              return [
-                `${val} (${percentage}%)`,
-                "Responses",
-              ];
-            }}
+            formatter={(value: number) => [
+              `${value} (${total > 0 ? Math.round((value / total) * 100) : 0}%)`,
+              "Responses",
+            ]}
           />
           <Bar dataKey="value" radius={[4, 4, 0, 0]}>
             {data.map((_, i) => {
@@ -384,6 +377,14 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
       {chart.chart_type === "HISTOGRAM" && <HistogramChart chart={chart} />}
 
       {chart.chart_type === "BOX_PLOT" && <BoxPlotChart chart={chart} />}
+
+      {chart.data_type === "MULTI_SELECT" && chart.metadata?.total_respondents && (
+        <div className="flex flex-wrap gap-4 mt-2 text-xs text-surface-500">
+          <span>{chart.metadata.total_respondents} respondents</span>
+          <span>{chart.metadata.unique_options} unique options</span>
+          <span>Avg {chart.metadata.avg_selections_per_respondent} selections each</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -395,7 +396,7 @@ export default function ChartsTab() {
   const [charts, setCharts] = useState<ChartPayload[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = async () => {
     if (!activeSurvey) return;
     setLoading(true);
     try {
@@ -405,11 +406,11 @@ export default function ChartsTab() {
       addToast("Failed to build dashboard", "error");
     }
     setLoading(false);
-  }, [activeSurvey, addToast]);
+  };
 
   useEffect(() => {
     loadDashboard();
-  }, [loadDashboard]);
+  }, [activeSurvey]);
 
   if (!activeSurvey) {
     return (

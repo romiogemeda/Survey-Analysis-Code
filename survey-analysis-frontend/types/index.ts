@@ -1,7 +1,7 @@
 // ── Domain Types ────────────────────────────────
 
 export type QualityGrade = "HIGH" | "MEDIUM" | "LOW";
-export type DataType = "NOMINAL" | "ORDINAL" | "INTERVAL" | "OPEN_ENDED" | "IDENTIFIER" | "BOOLEAN" | "DATETIME";
+export type DataType = "NOMINAL" | "ORDINAL" | "INTERVAL" | "OPEN_ENDED" | "IDENTIFIER" | "BOOLEAN" | "DATETIME" | "MULTI_SELECT";
 export type CorrelationMethod = "CHI_SQUARE" | "PEARSON" | "SPEARMAN";
 export type InsightSeverity = "HIGH" | "MEDIUM" | "LOW";
 export type ChatSessionType = "DATA_QUERY" | "PERSONA_INTERVIEW";

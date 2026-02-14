@@ -100,12 +100,13 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
 
     Detection order (most specific first):
     1. BOOLEAN  — exactly 2 distinct values (yes/no, true/false, 0/1, etc.)
-    2. DATETIME — >80% of values parse as ISO dates or common date formats
-    3. IDENTIFIER — >85% of values are unique (names, emails, IDs)
-    4. INTERVAL — >80% of values are numeric
-    5. OPEN_ENDED — average string length > 50 chars
-    6. ORDINAL — ≤10 distinct values
-    7. NOMINAL — default fallback
+    2. MULTI_SELECT — >30% of values contain commas/semicolons with avg >1.5 items
+    3. DATETIME — >80% of values parse as ISO dates or common date formats
+    4. IDENTIFIER — >85% of values are unique (names, emails, IDs)
+    5. INTERVAL — >80% of values are numeric
+    6. OPEN_ENDED — average string length > 50 chars
+    7. ORDINAL — ≤10 distinct values
+    8. NOMINAL — default fallback
     """
     import re
     from datetime import datetime as _dt
@@ -128,6 +129,21 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
         avg_len = sum(len(s) for s in distinct) / 2
         if avg_len < 20:
             return "BOOLEAN"
+
+    # ── MULTI_SELECT: values contain comma/semicolon-separated lists ──
+    delim_count = 0
+    total_items = 0
+    for s in non_empty:
+        if "," in s or ";" in s:
+            delim_count += 1
+            parts = re.split(r"[,;]\s*", s)
+            total_items += len(parts)
+        else:
+            total_items += 1
+    if n > 0 and delim_count / n > 0.3:
+        avg_items = total_items / n
+        if avg_items > 1.5:
+            return "MULTI_SELECT"
 
     # ── DATETIME: try parsing common date formats ──
     date_count = 0
