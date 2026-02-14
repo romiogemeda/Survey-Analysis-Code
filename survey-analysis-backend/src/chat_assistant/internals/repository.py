@@ -37,12 +37,18 @@ class ChatRepository:
         self, session_id: UUID, role: str, content: str,
         executed_query: dict | None = None,
         result_snapshot: dict | None = None,
+        chart_code: str | None = None,
+        chart_data: list | None = None,
+        chart_type: str | None = None,
     ) -> ChatMessageModel:
         model = ChatMessageModel(
             chat_session_id=session_id,
             role=role, content=content,
             executed_query=executed_query,
             result_snapshot=result_snapshot,
+            chart_code=chart_code,
+            chart_data=chart_data,
+            chart_type=chart_type,
         )
         self._session.add(model)
         await self._session.flush()

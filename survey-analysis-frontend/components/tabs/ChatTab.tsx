@@ -5,6 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { chat, simulation } from "@/lib/api";
 import type { ChatMessage, ChatSession, Persona } from "@/types";
 import { cn } from "@/lib/utils";
+import DynamicChart from "./DynamicChart";
 
 export default function ChatTab() {
   const { activeSurvey, addToast } = useAppStore();
@@ -83,7 +84,7 @@ export default function ChatTab() {
         <div>
           <h1 className="text-2xl font-display font-bold">Chat Assistant</h1>
           <p className="text-surface-500 text-sm mt-1">
-            Ask questions about your survey data in natural language
+            Ask questions about your survey data — get answers with interactive charts
           </p>
         </div>
       </div>
@@ -176,16 +177,15 @@ export default function ChatTab() {
             <div className="space-y-1.5">
               {[
                 "How many responses do we have?",
-                "Show satisfaction distribution",
-                "What's the average age?",
-                "Compare mobile vs desktop users",
-                "Which device has highest satisfaction?",
+                "Show a pie chart of device distribution",
+                "How many people have salary below 30000?",
+                "Create a scatter plot of age vs satisfaction",
+                "Show a radar chart comparing metrics",
+                "What's the average satisfaction by region?",
               ].map((q) => (
                 <button
                   key={q}
-                  onClick={() => {
-                    setInput(q);
-                  }}
+                  onClick={() => setInput(q)}
                   className="block w-full text-left px-3 py-2 rounded-lg text-xs text-surface-600 hover:bg-surface-50 hover:text-surface-900 transition-colors"
                 >
                   &ldquo;{q}&rdquo;
@@ -205,7 +205,7 @@ export default function ChatTab() {
               </div>
             ) : messages.length === 0 ? (
               <div className="flex items-center justify-center h-full text-surface-400 text-sm">
-                Send a message to ask about your survey data
+                Ask about your survey data — text answers and charts available
               </div>
             ) : (
               messages.map((msg, i) => (
@@ -218,16 +218,26 @@ export default function ChatTab() {
                 >
                   <div
                     className={cn(
-                      "max-w-[75%] rounded-2xl px-4 py-3 text-sm",
+                      "rounded-2xl px-4 py-3 text-sm",
                       msg.role === "USER"
-                        ? "bg-brand-600 text-white rounded-br-md"
-                        : "bg-surface-100 text-surface-800 rounded-bl-md"
+                        ? "max-w-[75%] bg-brand-600 text-white rounded-br-md"
+                        : "max-w-[85%] bg-surface-100 text-surface-800 rounded-bl-md"
                     )}
                   >
+                    {/* Text content */}
                     <p className="whitespace-pre-wrap">{msg.content}</p>
 
-                    {/* Show query details for assistant messages */}
-                    {msg.role === "ASSISTANT" && !!msg.executed_query && (
+                    {/* Dynamic Chart (assistant messages only) */}
+                    {msg.role === "ASSISTANT" && msg.chart_code && msg.chart_data && (
+                      <DynamicChart
+                        code={msg.chart_code}
+                        data={msg.chart_data as Record<string, unknown>[]}
+                        chartType={msg.chart_type || undefined}
+                      />
+                    )}
+
+                    {/* Query details (collapsible) */}
+                    {msg.executed_query && (
                       <details className="mt-2 text-xs opacity-70">
                         <summary className="cursor-pointer">Query details</summary>
                         <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
@@ -235,11 +245,15 @@ export default function ChatTab() {
                         </pre>
                       </details>
                     )}
-                    {msg.role === "ASSISTANT" && !!msg.result_snapshot?.data && (
+                    {msg.result_snapshot?.data && (
                       <details className="mt-1 text-xs opacity-70">
                         <summary className="cursor-pointer">Result data</summary>
                         <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
-                          {JSON.stringify(msg.result_snapshot.data, null, 2)}
+                          {JSON.stringify(
+                            (msg.result_snapshot as Record<string, unknown>).data,
+                            null,
+                            2
+                          )}
                         </pre>
                       </details>
                     )}
@@ -268,7 +282,7 @@ export default function ChatTab() {
                 className="input flex-1"
                 placeholder={
                   session
-                    ? "Ask about your survey data..."
+                    ? "Ask about your data, or request a chart..."
                     : "Start a session first"
                 }
                 value={input}

@@ -1,6 +1,12 @@
 """
 Chat Assistant Module — Public Interface.
 FR-20 (NL Querying), FR-21 (Dynamic Query), FR-22 (Context), FR-23 (Persona Interview).
+
+Flow:
+  User message → Intent Router (classify_intent) → Query Executor → Pipeline:
+    text_answer: executor result → LLM text summary
+    chart:       executor result → LLM React/Recharts component code
+    both:        executor result → LLM text summary + LLM chart code
 """
 
 import json
@@ -17,6 +23,7 @@ from src.shared_kernel import (
     get_db_session, llm_gateway,
 )
 from src.chat_assistant.internals.query_translator import QueryTranslator
+from src.chat_assistant.internals.query_executor import QueryExecutor
 from src.chat_assistant.internals.repository import ChatRepository
 
 logger = logging.getLogger(__name__)
@@ -39,6 +46,9 @@ class SendMessageRequest(BaseModel):
 class MessageResponse(BaseModel):
     role: str
     content: str
+    chart_code: str | None = None
+    chart_data: list[dict] | None = None
+    chart_type: str | None = None
     executed_query: dict | None = None
     result_snapshot: dict | None = None
 
@@ -86,23 +96,33 @@ class ChatAssistantService:
             session_id, ChatRole.ASSISTANT, response.content,
             executed_query=response.executed_query,
             result_snapshot=response.result_snapshot,
+            chart_code=response.chart_code,
+            chart_data=response.chart_data,
+            chart_type=response.chart_type,
         )
         return response
 
     async def get_history(self, session_id: UUID) -> list[dict]:
         messages = await self._repo.get_messages(session_id)
         return [
-            {"role": m.role, "content": m.content,
-             "executed_query": m.executed_query,
-             "result_snapshot": m.result_snapshot,
-             "sent_at": m.sent_at.isoformat()}
+            {
+                "role": m.role, "content": m.content,
+                "chart_code": m.chart_code,
+                "chart_data": m.chart_data,
+                "chart_type": m.chart_type,
+                "executed_query": m.executed_query,
+                "result_snapshot": m.result_snapshot,
+                "sent_at": m.sent_at.isoformat(),
+            }
             for m in messages
         ]
+
+    # ── Data Query Pipeline ───────────────────────
 
     async def _handle_data_query(
         self, query: str, survey_schema_id: UUID, active_filters: dict
     ) -> MessageResponse:
-        """FR-20/21: Translate NL → structured query → execute on data."""
+        """FR-20/21: Intent routing → query execution → text/chart generation."""
         from src.ingestion.interfaces.api import IngestionService
         ing = IngestionService(self._db)
 
@@ -116,35 +136,152 @@ class ChatAssistantService:
                 content="No submissions found for this survey yet.",
             )
 
-        # Build field list from data
-        fields = []
-        if schema and schema.question_definitions:
-            fields = [{"question_id": q.question_id, "text": q.text,
-                       "data_type": q.data_type}
-                      for q in schema.question_definitions]
-        else:
-            # Infer from first submission
-            fields = [{"question_id": k, "text": k, "data_type": "NOMINAL"}
-                      for k in raw_data[0].keys()]
+        # Build field context for the LLM
+        fields = self._build_field_context(schema, raw_data)
 
-        # Translate to structured query
-        structured = await self._translator.translate(query, fields, active_filters)
+        # Step 1: Classify intent + get query spec
+        classification = await self._translator.classify_intent(
+            query, fields, active_filters
+        )
+        intent = classification.get("intent", "text_answer")
+        query_spec = classification.get("query_spec", {"operation": "count", "filters": []})
+        chart_hint = classification.get("chart_hint", "bar")
 
-        if structured.get("intent") == "error":
-            return MessageResponse(
-                role=ChatRole.ASSISTANT,
-                content=structured.get("error", "Sorry, I couldn't understand that."),
+        # Step 2: Execute query
+        executor = QueryExecutor(raw_data)
+        query_result = executor.execute(query_spec)
+
+        # Step 3: Route to pipeline
+        if intent == "text_answer":
+            return await self._text_answer_pipeline(
+                query, query_spec, query_result
+            )
+        elif intent == "chart":
+            return await self._chart_pipeline(
+                query, query_spec, query_result, executor, chart_hint
+            )
+        else:  # "both"
+            return await self._both_pipeline(
+                query, query_spec, query_result, executor, chart_hint
             )
 
-        # Execute query on in-memory data
-        result = self._execute_query(structured, raw_data)
-
+    async def _text_answer_pipeline(
+        self, query: str, query_spec: dict, query_result: dict
+    ) -> MessageResponse:
+        """Generate a text-only answer."""
+        text = await self._translator.generate_text_answer(query, query_result)
         return MessageResponse(
             role=ChatRole.ASSISTANT,
-            content=result["summary"],
-            executed_query=structured,
-            result_snapshot=result,
+            content=text,
+            executed_query=query_spec,
+            result_snapshot=query_result,
         )
+
+    async def _chart_pipeline(
+        self, query: str, query_spec: dict, query_result: dict,
+        executor: QueryExecutor, chart_hint: str,
+    ) -> MessageResponse:
+        """Generate a chart with brief text explanation."""
+        chart_data = executor.prepare_chart_data(query_result)
+
+        if not chart_data:
+            # Fallback to text if no chartable data
+            text = await self._translator.generate_text_answer(query, query_result)
+            return MessageResponse(
+                role=ChatRole.ASSISTANT,
+                content=text + "\n\n(No chartable data was produced for this query.)",
+                executed_query=query_spec,
+                result_snapshot=query_result,
+            )
+
+        chart_code = await self._translator.generate_chart_code(
+            query, chart_data, chart_hint
+        )
+
+        if chart_code:
+            # Generate a brief text to accompany the chart
+            text = await self._translator.generate_text_answer(query, query_result)
+            return MessageResponse(
+                role=ChatRole.ASSISTANT,
+                content=text,
+                chart_code=chart_code,
+                chart_data=chart_data,
+                chart_type=chart_hint,
+                executed_query=query_spec,
+                result_snapshot=query_result,
+            )
+        else:
+            # Chart generation failed — fall back to text
+            text = await self._translator.generate_text_answer(query, query_result)
+            return MessageResponse(
+                role=ChatRole.ASSISTANT,
+                content=text + "\n\n(I tried to generate a chart but encountered an error.)",
+                executed_query=query_spec,
+                result_snapshot=query_result,
+            )
+
+    async def _both_pipeline(
+        self, query: str, query_spec: dict, query_result: dict,
+        executor: QueryExecutor, chart_hint: str,
+    ) -> MessageResponse:
+        """Generate text + chart together."""
+        text = await self._translator.generate_text_answer(query, query_result)
+        chart_data = executor.prepare_chart_data(query_result)
+
+        if chart_data:
+            chart_code = await self._translator.generate_chart_code(
+                query, chart_data, chart_hint
+            )
+            if chart_code:
+                return MessageResponse(
+                    role=ChatRole.ASSISTANT,
+                    content=text,
+                    chart_code=chart_code,
+                    chart_data=chart_data,
+                    chart_type=chart_hint,
+                    executed_query=query_spec,
+                    result_snapshot=query_result,
+                )
+
+        # Fallback: text only
+        return MessageResponse(
+            role=ChatRole.ASSISTANT,
+            content=text,
+            executed_query=query_spec,
+            result_snapshot=query_result,
+        )
+
+    def _build_field_context(
+        self, schema, raw_data: list[dict]
+    ) -> list[dict]:
+        """Build field metadata for the LLM, including sample values and stats."""
+        fields = []
+        if schema and schema.question_definitions:
+            for q in schema.question_definitions:
+                field_info = {
+                    "question_id": q.question_id,
+                    "text": q.text,
+                    "data_type": q.data_type,
+                }
+                # Add sample values
+                values = [r.get(q.question_id) for r in raw_data if r.get(q.question_id) is not None]
+                if values:
+                    distinct = list(set(str(v) for v in values))[:8]
+                    field_info["sample_values"] = distinct
+                    field_info["total_non_null"] = len(values)
+                fields.append(field_info)
+        else:
+            if raw_data:
+                for k in raw_data[0].keys():
+                    values = [r.get(k) for r in raw_data if r.get(k) is not None]
+                    distinct = list(set(str(v) for v in values))[:8]
+                    fields.append({
+                        "question_id": k, "text": k, "data_type": "NOMINAL",
+                        "sample_values": distinct, "total_non_null": len(values),
+                    })
+        return fields
+
+    # ── Persona Interview (unchanged) ─────────────
 
     async def _handle_persona_interview(
         self, message: str, persona_id: UUID | None
@@ -167,79 +304,6 @@ class ChatAssistantService:
             user_prompt=message,
         ))
         return MessageResponse(role=ChatRole.ASSISTANT, content=response.content)
-
-    def _execute_query(self, query: dict, data: list[dict]) -> dict:
-        """Execute a structured query against in-memory submission data."""
-        filtered = data
-
-        # Apply filters
-        for f in query.get("filters", []):
-            field = f.get("field", "")
-            op = f.get("operator", "eq")
-            value = f.get("value")
-            filtered = [
-                row for row in filtered
-                if self._apply_filter(row.get(field), op, value)
-            ]
-
-        # Apply aggregation
-        agg = query.get("aggregation")
-        if agg:
-            agg_field = agg.get("field", "")
-            agg_type = agg.get("type", "count")
-            values = [row.get(agg_field) for row in filtered if row.get(agg_field) is not None]
-
-            if agg_type == "count":
-                result_data = {"count": len(values)}
-                summary = f"Found {len(values)} matching responses."
-            elif agg_type == "distribution":
-                dist = dict(Counter(str(v) for v in values))
-                result_data = {"distribution": dist}
-                top = Counter(str(v) for v in values).most_common(3)
-                summary = f"Distribution of '{agg_field}': " + ", ".join(
-                    f"{k}: {v}" for k, v in top
-                )
-            elif agg_type == "average":
-                nums = []
-                for v in values:
-                    try:
-                        nums.append(float(v))
-                    except (ValueError, TypeError):
-                        pass
-                avg = sum(nums) / len(nums) if nums else 0
-                result_data = {"average": round(avg, 2)}
-                summary = f"Average '{agg_field}': {round(avg, 2)} (n={len(nums)})"
-            else:
-                result_data = {"values": values[:20]}
-                summary = f"Found {len(values)} values for '{agg_field}'."
-        else:
-            result_data = {"matching_count": len(filtered)}
-            summary = f"Found {len(filtered)} matching submissions out of {len(data)} total."
-
-        return {"summary": summary, "data": result_data, "filtered_count": len(filtered)}
-
-    def _apply_filter(self, actual, operator: str, expected) -> bool:
-        if actual is None:
-            return False
-        actual_str = str(actual).lower()
-        expected_str = str(expected).lower() if expected else ""
-        if operator == "eq":
-            return actual_str == expected_str
-        if operator == "neq":
-            return actual_str != expected_str
-        if operator == "contains":
-            return expected_str in actual_str
-        if operator == "in":
-            return actual_str in [str(v).lower() for v in (expected if isinstance(expected, list) else [expected])]
-        try:
-            a, e = float(actual), float(expected)
-            if operator == "gt":
-                return a > e
-            if operator == "lt":
-                return a < e
-        except (ValueError, TypeError):
-            pass
-        return False
 
 
 # ── Routes ────────────────────────────────────────
@@ -280,8 +344,6 @@ async def websocket_chat(websocket: WebSocket, session_id: UUID):
         while True:
             data = await websocket.receive_json()
             content = data.get("content", "")
-            # In production, get a DB session from the WebSocket scope
-            # For now, echo back with acknowledgment
             await websocket.send_json({
                 "role": "ASSISTANT",
                 "content": f"Processing: {content}",

@@ -32,6 +32,9 @@ class ChatMessageModel(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     executed_query: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     result_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    chart_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chart_data: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    chart_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -109,6 +109,9 @@ export interface ChatSession {
 export interface ChatMessage {
   role: "USER" | "ASSISTANT";
   content: string;
+  chart_code?: string | null;
+  chart_data?: Record<string, unknown>[] | null;
+  chart_type?: string | null;
   executed_query?: Record<string, unknown> | null;
   result_snapshot?: Record<string, unknown> | null;
   sent_at?: string;
