@@ -228,7 +228,7 @@ export default function ChatTab() {
                     <p className="whitespace-pre-wrap">{msg.content}</p>
 
                     {/* Dynamic Chart (assistant messages only) */}
-                    {msg.role === "ASSISTANT" && msg.chart_code && msg.chart_data && (
+                    {msg.role === "ASSISTANT" && msg.chart_code && !!msg.chart_data && (
                       <DynamicChart
                         code={msg.chart_code}
                         data={msg.chart_data as Record<string, unknown>[]}
@@ -237,7 +237,7 @@ export default function ChatTab() {
                     )}
 
                     {/* Query details (collapsible) */}
-                    {msg.executed_query && (
+                    {!!msg.executed_query && (
                       <details className="mt-2 text-xs opacity-70">
                         <summary className="cursor-pointer">Query details</summary>
                         <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
@@ -245,7 +245,7 @@ export default function ChatTab() {
                         </pre>
                       </details>
                     )}
-                    {msg.result_snapshot?.data && (
+                    {!!msg.result_snapshot?.data && (
                       <details className="mt-1 text-xs opacity-70">
                         <summary className="cursor-pointer">Result data</summary>
                         <pre className="mt-1 font-mono text-[10px] overflow-x-auto">

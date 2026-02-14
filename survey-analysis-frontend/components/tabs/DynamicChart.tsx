@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import * as Babel from "@babel/standalone";
 import {
   ResponsiveContainer,
   BarChart,
@@ -67,7 +68,7 @@ class ChartErrorBoundary extends React.Component<
 
 // ── Scope of Recharts components available to LLM-generated code ──
 
-const RECHARTS_SCOPE = {
+const RECHARTS_SCOPE: Record<string, unknown> = {
   React,
   ResponsiveContainer,
   BarChart,
@@ -102,6 +103,71 @@ const RECHARTS_SCOPE = {
   RadialBar,
 };
 
+// ── Code Cleaning ───────────────────────────────
+
+function cleanLLMCode(raw: string): string {
+  let code = raw.trim();
+
+  // Strip markdown code fences: ```jsx ... ``` or ```javascript ... ```
+  code = code.replace(/^```[\w]*\n?/gm, "").replace(/\n?```$/gm, "");
+  code = code.trim();
+
+  // Strip leading "export default" if present
+  code = code.replace(/^export\s+default\s+/, "");
+
+  // Strip trailing semicolons (Babel adds these)
+  code = code.replace(/;\s*$/, "");
+
+  return code.trim();
+}
+
+// ── Transpile & Compile ─────────────────────────
+
+function compileChartCode(rawCode: string): Function | null {
+  /**
+   * Key insight: We wrap the LLM code into a full function body
+   * BEFORE transpiling with Babel. This way Babel produces valid
+   * JS statements (with semicolons in proper positions), and we
+   * never have to deal with semicolons inside return() expressions.
+   *
+   * LLM outputs:  ({ data }) => { return <BarChart>...</BarChart> }
+   * We wrap:       var __c = ({ data }) => { return <BarChart>...</BarChart> }; return __c;
+   * Babel outputs: var __c = ({ data }) => { return React.createElement(BarChart, ...); }; return __c;
+   * new Function:  executes normally — semicolons are in statement context
+   */
+  const cleaned = cleanLLMCode(rawCode);
+
+  // Build a function body that assigns the component and returns it
+  const wrappedJSX = `var __c = ${cleaned};\nreturn __c;`;
+
+  // Transpile the ENTIRE wrapped body — Babel handles JSX→createElement
+  // and all semicolons end up in valid statement positions
+  const transpiled = Babel.transform(wrappedJSX, {
+    presets: ["react"],
+    sourceType: "script",
+    parserOpts: {
+      allowReturnOutsideFunction: true,
+    },
+  });
+
+  if (!transpiled.code) {
+    return null;
+  }
+
+  // Build the executable function with Recharts components in scope
+  const scopeKeys = Object.keys(RECHARTS_SCOPE);
+  const scopeValues = Object.values(RECHARTS_SCOPE);
+
+  const factory = new Function(...scopeKeys, transpiled.code);
+  const component = factory(...scopeValues);
+
+  if (typeof component !== "function") {
+    return null;
+  }
+
+  return component;
+}
+
 // ── Dynamic Chart Renderer ──────────────────────
 
 interface DynamicChartProps {
@@ -115,29 +181,17 @@ export default function DynamicChart({ code, data, chartType }: DynamicChartProp
 
   const ChartComponent = useMemo(() => {
     try {
-      // Build a function that has all Recharts components in scope
-      const scopeKeys = Object.keys(RECHARTS_SCOPE);
-      const scopeValues = Object.values(RECHARTS_SCOPE);
-
-      // The code should be an arrow function: ({ data }) => { ... }
-      // We wrap it so that `new Function` returns the component
-      const factory = new Function(
-        ...scopeKeys,
-        `"use strict"; return (${code});`
-      );
-
-      const component = factory(...scopeValues);
-
-      if (typeof component !== "function") {
-        setRenderError("Generated code did not produce a function.");
+      const component = compileChartCode(code);
+      if (!component) {
+        setRenderError("Generated code did not produce a valid component.");
         return null;
       }
-
       return component;
     } catch (err) {
-      setRenderError(
-        err instanceof Error ? err.message : "Failed to compile chart code."
-      );
+      const message = err instanceof Error ? err.message : "Failed to compile chart code.";
+      console.error("[DynamicChart] Compilation error:", message);
+      console.error("[DynamicChart] Raw code:", code);
+      setRenderError(message);
       return null;
     }
   }, [code]);
