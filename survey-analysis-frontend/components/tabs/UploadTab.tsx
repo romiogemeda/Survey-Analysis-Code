@@ -237,6 +237,12 @@ export default function UploadTab() {
                       ? "bg-purple-50 text-purple-700 border border-purple-200"
                       : q.data_type === "ORDINAL"
                       ? "bg-amber-50 text-amber-700 border border-amber-200"
+                      : q.data_type === "BOOLEAN"
+                      ? "bg-teal-50 text-teal-700 border border-teal-200"
+                      : q.data_type === "IDENTIFIER"
+                      ? "bg-surface-100 text-surface-500 border border-surface-300"
+                      : q.data_type === "DATETIME"
+                      ? "bg-cyan-50 text-cyan-700 border border-cyan-200"
                       : "bg-surface-100 text-surface-600 border border-surface-200"
                   }`}
                 >

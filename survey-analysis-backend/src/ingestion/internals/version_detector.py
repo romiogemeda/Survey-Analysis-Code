@@ -98,17 +98,64 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
     """
     Infer the DataType of a field by sampling values from the records.
 
-    Heuristic:
-    - All values are numeric (int/float or parseable) → INTERVAL
-    - Small number of distinct values (<=10) → ORDINAL
-    - Average string length > 50 chars → OPEN_ENDED
-    - Otherwise → NOMINAL
+    Detection order (most specific first):
+    1. BOOLEAN  — exactly 2 distinct values (yes/no, true/false, 0/1, etc.)
+    2. DATETIME — >80% of values parse as ISO dates or common date formats
+    3. IDENTIFIER — >85% of values are unique (names, emails, IDs)
+    4. INTERVAL — >80% of values are numeric
+    5. OPEN_ENDED — average string length > 50 chars
+    6. ORDINAL — ≤10 distinct values
+    7. NOMINAL — default fallback
     """
+    import re
+    from datetime import datetime as _dt
+
     values = [r.get(field_name) for r in records if r.get(field_name) is not None]
     if not values:
         return None
 
-    # Check numeric
+    str_values = [str(v).strip() for v in values]
+    non_empty = [s for s in str_values if s]
+    if not non_empty:
+        return None
+
+    distinct = set(non_empty)
+    n = len(non_empty)
+
+    # ── BOOLEAN: exactly 2 distinct values ──
+    if len(distinct) == 2:
+        # Confirm they look boolean-ish (not just 2 long paragraphs)
+        avg_len = sum(len(s) for s in distinct) / 2
+        if avg_len < 20:
+            return "BOOLEAN"
+
+    # ── DATETIME: try parsing common date formats ──
+    date_count = 0
+    _date_patterns = [
+        r"^\d{4}-\d{2}-\d{2}",          # ISO: 2025-01-15...
+        r"^\d{2}/\d{2}/\d{4}",           # US: 01/15/2025
+        r"^\d{2}-\d{2}-\d{4}",           # EU: 15-01-2025
+        r"^\d{4}/\d{2}/\d{2}",           # Alt ISO: 2025/01/15
+    ]
+    _date_re = re.compile("|".join(_date_patterns))
+    for s in non_empty:
+        if _date_re.match(s):
+            date_count += 1
+    if n > 0 and date_count / n > 0.8:
+        return "DATETIME"
+
+    # ── IDENTIFIER: high uniqueness ratio ──
+    # Also catches emails and UUIDs via pattern check
+    _email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    email_count = sum(1 for s in non_empty if _email_re.match(s))
+    if n > 0 and email_count / n > 0.5:
+        return "IDENTIFIER"
+
+    if n >= 5 and len(distinct) / n > 0.85:
+        # High cardinality — likely an identifier column
+        return "IDENTIFIER"
+
+    # ── INTERVAL: mostly numeric ──
     numeric_count = 0
     for v in values:
         if isinstance(v, (int, float)):
@@ -119,19 +166,17 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
                 numeric_count += 1
             except ValueError:
                 pass
-
-    if numeric_count / len(values) > 0.8:
+    if n > 0 and numeric_count / n > 0.8:
         return "INTERVAL"
 
-    # Check text length for open-ended
-    str_values = [str(v) for v in values]
-    avg_len = sum(len(s) for s in str_values) / len(str_values)
+    # ── OPEN_ENDED: long text ──
+    avg_len = sum(len(s) for s in non_empty) / len(non_empty)
     if avg_len > 50:
         return "OPEN_ENDED"
 
-    # Check cardinality for ordinal vs nominal
-    distinct = len(set(str_values))
-    if distinct <= 10:
+    # ── ORDINAL: few distinct values ──
+    if len(distinct) <= 10:
         return "ORDINAL"
 
+    # ── NOMINAL: default ──
     return "NOMINAL"

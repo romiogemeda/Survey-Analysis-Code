@@ -26,6 +26,9 @@ class DataType(StrEnum):
     ORDINAL = "ORDINAL"
     INTERVAL = "INTERVAL"
     OPEN_ENDED = "OPEN_ENDED"
+    IDENTIFIER = "IDENTIFIER"
+    BOOLEAN = "BOOLEAN"
+    DATETIME = "DATETIME"
 
 
 class CorrelationMethod(StrEnum):

@@ -227,19 +227,19 @@ export default function ChatTab() {
                     <p className="whitespace-pre-wrap">{msg.content}</p>
 
                     {/* Show query details for assistant messages */}
-                    {msg.role === "ASSISTANT" && msg.executed_query && (
+                    {msg.role === "ASSISTANT" && !!msg.executed_query && (
                       <details className="mt-2 text-xs opacity-70">
                         <summary className="cursor-pointer">Query details</summary>
                         <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
-                          {JSON.stringify(msg.executed_query, null, 2) as string}
+                          {JSON.stringify(msg.executed_query, null, 2)}
                         </pre>
                       </details>
                     )}
-                    {msg.role === "ASSISTANT" && msg.result_snapshot?.data && (
+                    {msg.role === "ASSISTANT" && !!msg.result_snapshot?.data && (
                       <details className="mt-1 text-xs opacity-70">
                         <summary className="cursor-pointer">Result data</summary>
                         <pre className="mt-1 font-mono text-[10px] overflow-x-auto">
-                          {JSON.stringify(msg.result_snapshot.data, null, 2) as string}
+                          {JSON.stringify(msg.result_snapshot.data, null, 2)}
                         </pre>
                       </details>
                     )}
