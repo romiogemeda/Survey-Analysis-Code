@@ -16,6 +16,9 @@ from src.shared_kernel import (
 )
 from src.analytics.internals.correlation_engine import CorrelationEngine
 from src.analytics.internals.repository import AnalyticsRepository
+from src.analytics.internals.findings_generator import (
+    generate_findings, generate_findings_summary_for_llm,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
@@ -25,6 +28,7 @@ class AnalyticsService:
     """Public analytics service. Called by other modules and routes."""
 
     def __init__(self, session: AsyncSession) -> None:
+        self._db = session
         self._repo = AnalyticsRepository(session)
         self._engine = CorrelationEngine()
 
@@ -155,8 +159,81 @@ class AnalyticsService:
                 pass
         return "INTERVAL" if numeric_count / len(values) > 0.8 else "NOMINAL"
 
+    async def analyze_full(self, survey_schema_id: UUID) -> dict:
+        """
+        Single-action analysis: run correlations → generate findings → produce summary.
+        Returns everything a non-technical user needs in one response.
+        """
+        from src.ingestion.interfaces.api import IngestionService
+        ing = IngestionService(self._db)
+
+        subs = await ing.get_submissions(survey_schema_id, valid_only=True)
+        raw_data = [s.raw_responses for s in subs]
+
+        if not raw_data:
+            return {
+                "survey_schema_id": str(survey_schema_id),
+                "summary": "No survey responses found. Upload data first to run analysis.",
+                "findings": [],
+                "stats": {
+                    "total_responses": 0,
+                    "pairs_analyzed": 0,
+                    "significant_findings": 0,
+                },
+            }
+
+        # Step 1: Run correlations
+        correlations = await self.run_correlation_analysis(survey_schema_id, raw_data)
+
+        # Step 2: Generate plain-language findings
+        findings = await generate_findings(correlations)
+
+        # Step 3: Generate executive summary using plain-language findings
+        findings_text = generate_findings_summary_for_llm(findings)
+        prompt = (
+            f"Survey has {len(raw_data)} responses.\n\n"
+            f"Key findings:\n{findings_text}\n\n"
+            f"Response fields: {list(raw_data[0].keys()) if raw_data else 'N/A'}\n\n"
+            "Write a clear, non-technical executive summary (3-5 paragraphs). "
+            "Explain the findings in plain language. Avoid statistical jargon like "
+            "p-values, correlation coefficients, or significance levels. "
+            "Focus on what the patterns mean and what actions could be taken."
+        )
+
+        summary_response = await llm_gateway.complete(LLMRequest(
+            system_prompt=(
+                "You are a senior analyst writing for non-technical readers. "
+                "Write a clear executive summary covering key patterns, their meaning, "
+                "and practical recommendations. Use simple language."
+            ),
+            user_prompt=prompt,
+        ))
+
+        significant_count = sum(1 for c in correlations if c.is_significant)
+
+        return {
+            "survey_schema_id": str(survey_schema_id),
+            "summary": summary_response.content,
+            "findings": findings,
+            "stats": {
+                "total_responses": len(raw_data),
+                "pairs_analyzed": len(correlations),
+                "significant_findings": significant_count,
+            },
+        }
+
 
 # ── Routes ────────────────────────────────────────
+
+@router.post("/analyze/{survey_schema_id}")
+async def analyze_survey(
+    survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    """Single-action analysis for non-technical users.
+    Runs correlations, generates plain-language findings, produces executive summary."""
+    service = AnalyticsService(session)
+    return await service.analyze_full(survey_schema_id)
+
 
 @router.post("/correlations/{survey_schema_id}")
 async def run_correlations(

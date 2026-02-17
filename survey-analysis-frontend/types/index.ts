@@ -173,3 +173,29 @@ export interface ExecutiveSummary {
   quality_filter_applied: boolean;
   generated_at?: string;
 }
+
+export interface AnalysisFinding {
+  headline: string;
+  explanation: string;
+  recommendation: string;
+  strength: "strong" | "moderate" | "weak";
+  direction: "positive" | "negative" | "association";
+  variables: string[];
+  importance_score: number;
+  technical: {
+    method: string;
+    statistic: number;
+    p_value: number;
+  };
+}
+
+export interface AnalysisResult {
+  survey_schema_id: string;
+  summary: string;
+  findings: AnalysisFinding[];
+  stats: {
+    total_responses: number;
+    pairs_analyzed: number;
+    significant_findings: number;
+  };
+}
