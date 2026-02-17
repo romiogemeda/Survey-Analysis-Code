@@ -101,6 +101,15 @@ const RECHARTS_SCOPE: Record<string, unknown> = {
   LabelList,
   RadialBarChart,
   RadialBar,
+  // SVG primitives for custom charts (heatmaps, bubble charts, etc.)
+  svg: "svg",
+  g: "g",
+  rect: "rect",
+  text: "text",
+  line: "line",
+  circle: "circle",
+  ellipse: "ellipse",
+  path: "path",
 };
 
 // ── Code Cleaning ───────────────────────────────
