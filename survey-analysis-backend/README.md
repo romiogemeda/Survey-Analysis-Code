@@ -7,46 +7,173 @@ AI-Powered Survey Analysis Dashboard — Module 2 of 4.
 ### Prerequisites
 
 - Python 3.12+
-- PostgreSQL 16
-- Redis 7
+- Docker & Docker Compose (for PostgreSQL and Redis, or full containerized setup)
+- An [OpenRouter](https://openrouter.ai/) API key (required for all LLM/AI features)
+
+### 1. Configure Environment Variables
+
+Before running anything, create a `.env` file in the project root:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and set your API key:
+
+```env
+# Required: Get your key from https://openrouter.ai/
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# LLM Configuration (required — server will not start without these)
+LLM_DEFAULT_MODEL=openrouter/openai/gpt-4o
+LLM_FALLBACK_MODEL=openrouter/openai/gpt-4o
+
+# Database & Redis (defaults work for local Docker setup)
+DB_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/survey_analysis
+REDIS_URL=redis://localhost:6379/0
+```
+
+> **Important:** `LLM_DEFAULT_MODEL` and `LLM_FALLBACK_MODEL` have no defaults in the code.
+> The server will crash on startup if these are missing from `.env`.
+
+---
 
 ### Option A: Docker (Recommended)
 
+This is the easiest way to get everything running. It starts **4 services**:
+
+| Service      | Image                   | Purpose                                                         |
+| ------------ | ----------------------- | --------------------------------------------------------------- |
+| **postgres** | `postgres:16-alpine`    | Primary database — stores surveys, responses, analytics results |
+| **redis**    | `redis:7-alpine`        | Celery task broker + application cache                          |
+| **api**      | Built from `Dockerfile` | FastAPI application server (the modular monolith)               |
+| **worker**   | Built from `Dockerfile` | Celery worker for async tasks (analytics, simulation)           |
+
 ```bash
+# 1. Make sure your .env file is configured (see step above)
+
+# 2. Start all 4 services
 docker compose up -d
+
+# 3. Verify all containers are running
+docker compose ps
+
+# 4. Check API server logs for any errors
+docker compose logs api
 ```
 
-This starts: PostgreSQL, Redis, FastAPI API server, and Celery worker.
+- API available at: http://localhost:8000
+- Swagger UI at: http://localhost:8000/api/docs
+- Database tables are **automatically created** on API startup.
 
-API available at: http://localhost:8000
-Swagger UI at: http://localhost:8000/api/docs
+To stop all services:
+
+```bash
+docker compose down          # Stop containers (preserves data)
+docker compose down -v       # Stop containers AND delete database data
+```
+
+---
 
 ### Option B: Local Development
 
-```bash
-# 1. Install dependencies
-pip install -e ".[dev]"
+Use this if you want to run the API server locally with hot-reload for development, while using Docker only for PostgreSQL and Redis.
 
-# 2. Start PostgreSQL and Redis (or use Docker for just these)
+```bash
+# 1. Create and activate a virtual environment
+python -m venv venv
+
+# On macOS/Linux:
+source venv/bin/activate
+
+# On Windows (PowerShell):
+venv\Scripts\Activate.ps1
+
+# On Windows (CMD):
+venv\Scripts\activate.bat
+```
+
+```bash
+# 2. Install dependencies
+pip install -e ".[dev]"
+```
+
+```bash
+# 3. Download TextBlob corpora (required for sentiment analysis)
+python -m textblob.download_corpora
+```
+
+```bash
+# 4. Make sure your .env file is configured (see "Configure Environment Variables" above)
+
+# 5. Start PostgreSQL and Redis via Docker
 docker compose up -d postgres redis
 
-# 3. Set environment variables (or use defaults for local dev)
-export DB_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/survey_analysis"
-export REDIS_URL="redis://localhost:6379/0"
-export LLM_DEFAULT_MODEL="gpt-4o"  # Set your preferred model
-# export OPENAI_API_KEY="sk-..."   # Required for LLM features
+# 6. Verify Postgres and Redis are healthy
+docker compose ps
+```
 
-# 4. Run the server
+```bash
+# 7. Run the API server (tables are auto-created on startup)
 uvicorn src.main:app --reload --port 8000
+```
 
-# 5. (Optional) Run the Celery worker for async tasks
+```bash
+# 8. (Optional) In a separate terminal, run the Celery worker for async tasks
 celery -A workers.celery_app worker --loglevel=info -Q analytics,simulation
 ```
+
+- API available at: http://localhost:8000
+- Swagger UI at: http://localhost:8000/api/docs
+
+---
+
+### Docker Services — Detailed Configuration
+
+Below are the key settings for each Docker service (defined in `docker-compose.yml`):
+
+#### PostgreSQL
+
+| Setting       | Value                                       |
+| ------------- | ------------------------------------------- |
+| Image         | `postgres:16-alpine`                        |
+| Database name | `survey_analysis`                           |
+| Username      | `postgres`                                  |
+| Password      | `postgres`                                  |
+| Port          | `5432`                                      |
+| Data volume   | `postgres_data` (persisted across restarts) |
+
+#### Redis
+
+| Setting | Value                 |
+| ------- | --------------------- |
+| Image   | `redis:7-alpine`      |
+| Port    | `6379`                |
+| DB 0    | Application cache     |
+| DB 1    | Celery broker         |
+| DB 2    | Celery result backend |
+
+#### API Server
+
+| Setting    | Value                                   |
+| ---------- | --------------------------------------- |
+| Port       | `8000`                                  |
+| Reload     | Enabled (auto-restarts on code changes) |
+| Depends on | Postgres (healthy), Redis (healthy)     |
+
+#### Celery Worker
+
+| Setting    | Value                               |
+| ---------- | ----------------------------------- |
+| Queues     | `analytics`, `simulation`           |
+| Depends on | Postgres (healthy), Redis (healthy) |
+
+---
 
 ### Run the Demo
 
 ```bash
-# With server running:
+# With the API server running:
 python scripts/demo_api.py
 ```
 
@@ -62,6 +189,8 @@ pytest tests/fitness_functions/ -m fitness -v
 # All tests
 pytest -v
 ```
+
+---
 
 ## Architecture
 
@@ -94,3 +223,14 @@ Modular Monolith with 6 domain modules:
 - **ADR-002**: Python/FastAPI + LiteLLM tech stack
 - **LLM Gateway**: Single abstraction for all AI calls (`shared_kernel/llm_gateway.py`)
 - **Fitness Functions**: Automated tests enforce module boundaries in CI
+
+## Troubleshooting
+
+| Problem                                                  | Solution                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Server crashes on startup with pydantic validation error | Make sure `LLM_DEFAULT_MODEL` and `LLM_FALLBACK_MODEL` are set in `.env` |
+| LLM calls fail / "API key not found"                     | Ensure `OPENROUTER_API_KEY` is set in `.env` with a valid key            |
+| Postgres connection refused                              | Run `docker compose up -d postgres` and wait for health check to pass    |
+| Redis connection refused                                 | Run `docker compose up -d redis` and wait for health check to pass       |
+| Sentiment analysis fails                                 | Run `python -m textblob.download_corpora` to download required NLP data  |
+| Celery tasks stuck / not processing                      | Ensure the worker is running and Redis is accessible                     |
