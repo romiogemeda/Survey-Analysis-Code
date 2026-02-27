@@ -19,6 +19,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/simulation", tags=["Simulation"])
 
 
+def _extract_json(text: str) -> dict:
+    """Strip markdown code fences (```json ... ```) and parse JSON."""
+    import re
+    # Remove ```json ... ``` or ``` ... ``` wrappers if present
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+    return json.loads(cleaned)
+
+
 # ── DTOs ──────────────────────────────────────────
 
 class CreatePersonaRequest(BaseModel):
@@ -85,8 +94,9 @@ class SimulationService:
         ))
 
         try:
-            parsed = json.loads(response.content)
-        except json.JSONDecodeError:
+            parsed = _extract_json(response.content)
+        except (json.JSONDecodeError, ValueError):
+            logger.warning("Failed to parse persona JSON from LLM response")
             parsed = {"raw_description": req.description_prompt}
 
         model = await self._repo.save_persona(
@@ -142,8 +152,9 @@ class SimulationService:
             ))
 
             try:
-                answers = json.loads(response.content)
-            except json.JSONDecodeError:
+                answers = _extract_json(response.content)
+            except (json.JSONDecodeError, ValueError):
+                logger.warning("Failed to parse simulation JSON for response %d", i)
                 answers = {"parse_error": response.content}
 
             model = await self._repo.save_simulated_response(

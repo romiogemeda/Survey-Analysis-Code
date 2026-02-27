@@ -12,23 +12,25 @@ class DatabaseSettings(BaseSettings):
     echo: bool = False
     pool_size: int = 20
     max_overflow: int = 10
-    model_config = {"env_prefix": "DB_"}
+    model_config = {"env_prefix": "DB_", "env_file": ".env", "extra": "ignore"}
 
 
 class RedisSettings(BaseSettings):
     url: str = "redis://localhost:6379/0"
     cache_ttl_seconds: int = 300
-    model_config = {"env_prefix": "REDIS_"}
+    model_config = {"env_prefix": "REDIS_", "env_file": ".env", "extra": "ignore"}
 
 
 class LLMSettings(BaseSettings):
-    default_model: str = "gpt-4o"
-    fallback_model: str = "claude-sonnet-4-20250514"
+    # These MUST be set in .env (LLM_DEFAULT_MODEL, LLM_FALLBACK_MODEL).
+    # No hardcoded defaults — if missing, the server will fail at startup with a clear error.
+    default_model: str
+    fallback_model: str
     temperature: float = 0.3
     max_tokens: int = 4096
     request_timeout: int = 30
     max_retries: int = 2
-    model_config = {"env_prefix": "LLM_"}
+    model_config = {"env_prefix": "LLM_", "env_file": ".env", "extra": "ignore"}
 
 
 class CelerySettings(BaseSettings):
@@ -36,7 +38,7 @@ class CelerySettings(BaseSettings):
     result_backend: str = "redis://localhost:6379/2"
     task_soft_time_limit: int = 120
     task_hard_time_limit: int = 180
-    model_config = {"env_prefix": "CELERY_"}
+    model_config = {"env_prefix": "CELERY_", "env_file": ".env", "extra": "ignore"}
 
 
 class AppSettings(BaseSettings):
@@ -50,7 +52,7 @@ class AppSettings(BaseSettings):
     redis: RedisSettings = RedisSettings()
     llm: LLMSettings = LLMSettings()
     celery: CelerySettings = CelerySettings()
-    model_config = {"env_prefix": "APP_"}
+    model_config = {"env_prefix": "APP_", "env_file": ".env", "extra": "ignore"}
 
 
 @lru_cache
