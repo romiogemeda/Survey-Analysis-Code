@@ -123,9 +123,22 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
     distinct = set(non_empty)
     n = len(non_empty)
 
+    # ── Pre-calculate metrics ──
+    numeric_count = 0
+    for v in values:
+        if isinstance(v, (int, float)):
+            numeric_count += 1
+        elif isinstance(v, str):
+            try:
+                # parser.py already stripped quotes/spaces
+                float(v)
+                numeric_count += 1
+            except ValueError:
+                pass
+    is_mostly_numeric = n > 0 and (numeric_count / n > 0.8)
+
     # ── BOOLEAN: exactly 2 distinct values ──
     if len(distinct) == 2:
-        # Confirm they look boolean-ish (not just 2 long paragraphs)
         avg_len = sum(len(s) for s in distinct) / 2
         if avg_len < 20:
             return "BOOLEAN"
@@ -148,10 +161,10 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
     # ── DATETIME: try parsing common date formats ──
     date_count = 0
     _date_patterns = [
-        r"^\d{4}-\d{2}-\d{2}",          # ISO: 2025-01-15...
-        r"^\d{2}/\d{2}/\d{4}",           # US: 01/15/2025
-        r"^\d{2}-\d{2}-\d{4}",           # EU: 15-01-2025
-        r"^\d{4}/\d{2}/\d{2}",           # Alt ISO: 2025/01/15
+        r"^\d{4}-\d{2}-\d{2}",
+        r"^\d{2}/\d{2}/\d{4}",
+        r"^\d{2}-\d{2}-\d{4}",
+        r"^\d{4}/\d{2}/\d{2}",
     ]
     _date_re = re.compile("|".join(_date_patterns))
     for s in non_empty:
@@ -161,28 +174,16 @@ def _infer_data_type(field_name: str, records: list[dict]) -> str | None:
         return "DATETIME"
 
     # ── IDENTIFIER: high uniqueness ratio ──
-    # Also catches emails and UUIDs via pattern check
     _email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     email_count = sum(1 for s in non_empty if _email_re.match(s))
     if n > 0 and email_count / n > 0.5:
         return "IDENTIFIER"
 
-    if n >= 5 and len(distinct) / n > 0.85:
-        # High cardinality — likely an identifier column
+    if n >= 5 and len(distinct) / n > 0.85 and not is_mostly_numeric:
         return "IDENTIFIER"
 
     # ── INTERVAL: mostly numeric ──
-    numeric_count = 0
-    for v in values:
-        if isinstance(v, (int, float)):
-            numeric_count += 1
-        elif isinstance(v, str):
-            try:
-                float(v)
-                numeric_count += 1
-            except ValueError:
-                pass
-    if n > 0 and numeric_count / n > 0.8:
+    if is_mostly_numeric:
         return "INTERVAL"
 
     # ── OPEN_ENDED: long text ──

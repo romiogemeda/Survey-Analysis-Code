@@ -8,6 +8,7 @@ from itertools import combinations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared_kernel import (
@@ -23,6 +24,17 @@ from src.analytics.internals.findings_generator import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 
+
+# ── DTOs ──────────────────────────────────────────
+
+class PinItemRequest(BaseModel):
+    survey_schema_id: UUID
+    item_type: str  # CHART, TEXT
+    content_json: dict
+    display_order: int = 0
+
+
+# ── Service ───────────────────────────────────────
 
 class AnalyticsService:
     """Public analytics service. Called by other modules and routes."""
@@ -222,6 +234,31 @@ class AnalyticsService:
             },
         }
 
+    # ── Dashboard Implementation ──────────────────
+
+    async def pin_item(self, req: PinItemRequest) -> dict:
+        item = await self._repo.save_pinned_item(
+            req.survey_schema_id, req.item_type, req.content_json, req.display_order
+        )
+        return {"id": str(item.id), "status": "pinned"}
+
+    async def get_dashboard(self, survey_schema_id: UUID) -> list[dict]:
+        items = await self._repo.get_pinned_items(survey_schema_id)
+        return [
+            {
+                "id": str(i.id),
+                "item_type": i.item_type,
+                "content_json": i.content_json,
+                "display_order": i.display_order,
+                "created_at": i.created_at.isoformat(),
+            }
+            for i in items
+        ]
+
+    async def unpin_item(self, item_id: UUID) -> dict:
+        await self._repo.delete_pinned_item(item_id)
+        return {"status": "unpinned"}
+
 
 # ── Routes ────────────────────────────────────────
 
@@ -229,8 +266,6 @@ class AnalyticsService:
 async def analyze_survey(
     survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
 ):
-    """Single-action analysis for non-technical users.
-    Runs correlations, generates plain-language findings, produces executive summary."""
     service = AnalyticsService(session)
     return await service.analyze_full(survey_schema_id)
 
@@ -239,7 +274,6 @@ async def analyze_survey(
 async def run_correlations(
     survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
 ):
-    """Trigger correlation analysis on all submissions for a survey."""
     from src.ingestion.interfaces.api import IngestionService
     ing = IngestionService(session)
     subs = await ing.get_submissions(survey_schema_id, valid_only=True)
@@ -278,7 +312,6 @@ async def generate_summary(
     quality_filter: bool = Query(default=False),
     session: AsyncSession = Depends(get_db_session),
 ):
-    """Generate an AI executive summary."""
     from src.ingestion.interfaces.api import IngestionService
     ing = IngestionService(session)
     subs = await ing.get_submissions(survey_schema_id, valid_only=True)
@@ -299,3 +332,29 @@ async def get_summary(
     if not summary:
         raise HTTPException(404, "No summary found. Generate one first via POST.")
     return summary
+
+
+# ── Dashboard Routes ───────────────────────────
+
+@router.post("/dashboard/pin")
+async def pin_dashboard_item(
+    req: PinItemRequest, session: AsyncSession = Depends(get_db_session)
+):
+    service = AnalyticsService(session)
+    return await service.pin_item(req)
+
+
+@router.get("/dashboard/{survey_schema_id}")
+async def get_dashboard(
+    survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    service = AnalyticsService(session)
+    return await service.get_dashboard(survey_schema_id)
+
+
+@router.delete("/dashboard/items/{item_id}")
+async def unpin_dashboard_item(
+    item_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    service = AnalyticsService(session)
+    return await service.unpin_item(item_id)

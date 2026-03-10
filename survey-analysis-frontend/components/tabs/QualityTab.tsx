@@ -34,9 +34,9 @@ export default function QualityTab() {
   };
 
   const gradeStats = {
-    HIGH: Array.from(scores.values()).filter((s) => s.grade === "HIGH").length,
-    MEDIUM: Array.from(scores.values()).filter((s) => s.grade === "MEDIUM").length,
-    LOW: Array.from(scores.values()).filter((s) => s.grade === "LOW").length,
+    HIGH: Array.from((scores || new Map()).values()).filter((s) => s.grade === "HIGH").length,
+    MEDIUM: Array.from((scores || new Map()).values()).filter((s) => s.grade === "MEDIUM").length,
+    LOW: Array.from((scores || new Map()).values()).filter((s) => s.grade === "LOW").length,
   };
   const total = gradeStats.HIGH + gradeStats.MEDIUM + gradeStats.LOW;
 

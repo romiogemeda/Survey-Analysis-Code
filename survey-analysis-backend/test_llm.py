@@ -1,43 +1,38 @@
-"""
-Test script to verify LLM API configuration is working.
-This will test the chat assistant endpoint directly.
-"""
+import os
 import asyncio
-import sys
-sys.path.insert(0, 'src')
-
-# Load environment variables first
+from litellm import acompletion
 from dotenv import load_dotenv
-load_dotenv()
 
-# Clear settings cache to ensure fresh values
-from config.settings import get_settings
-get_settings.cache_clear()
-
-from src.shared_kernel.llm_gateway import llm_gateway, LLMRequest
-
-async def test_llm():
-    print("Testing LLM Gateway with OpenRouter API...")
-    print("=" * 50)
-    
+async def test_key(model, key):
+    print(f"Testing Gemini model: {model}")
     try:
-        request = LLMRequest(
-            system_prompt="You are a helpful assistant.",
-            user_prompt="Say 'Hello! The API key is working!' in one sentence.",
+        response = await acompletion(
+            model=model,
+            messages=[{"role": "user", "content": "Say hello!"}],
+            api_key=key
         )
-        
-        print("Sending test request to LLM...")
-        response = await llm_gateway.complete(request)
-        
-        print("\n✅ SUCCESS!")
-        print(f"Model used: {response.model_used}")
-        print(f"Response: {response.content}")
-        print(f"Tokens used: {response.total_tokens}")
-        
+        print(f"SUCCESS with {model}!")
+        return True
     except Exception as e:
-        print(f"\n❌ ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"FAILED {model}: {e}")
+        return False
+
+async def main():
+    load_dotenv()
+    google_key = os.getenv("GOOGLE_API_KEY")
+    if not google_key or "AIza" not in google_key:
+        print("No valid Google key found")
+        return
+
+    models = [
+        "gemini/gemini-1.5-flash",
+        "gemini/gemini-1.0-pro",
+        "gemini/gemini-1.5-pro",
+    ]
+    
+    for m in models:
+        if await test_key(m, google_key):
+            break
 
 if __name__ == "__main__":
-    asyncio.run(test_llm())
+    asyncio.run(main())

@@ -48,6 +48,9 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       APP_DEBUG: "true"
+      LLM_DEFAULT_MODEL: openrouter/openai/gpt-4o
+      LLM_FALLBACK_MODEL: openrouter/openai/gpt-4o
+      OPENROUTER_API_KEY: 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
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +70,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+      LLM_DEFAULT_MODEL: openrouter/openai/gpt-4o
+      LLM_FALLBACK_MODEL: openrouter/openai/gpt-4o
+      OPENROUTER_API_KEY: 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
     depends_on:
       postgres:
         condition: service_healthy

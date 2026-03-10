@@ -132,4 +132,7 @@ coverage/
 dist/
 build/
 *.min.js
-*.min.css
+# Temporary test scripts
+survey-analysis-backend/test_*.py
+test_*.csv
+docker/

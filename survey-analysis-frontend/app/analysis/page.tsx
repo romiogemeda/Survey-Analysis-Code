@@ -34,15 +34,19 @@ export default function AnalysisPage() {
     setActiveTab,
     qualityFilterEnabled,
     toggleQualityFilter,
+    submissions,
     setSubmissions,
+    qualityScores,
     setQualityScores,
     surveys,
     setSurveys,
+    toasts,
+    removeToast,
   } = useAppStore();
 
   // Load survey list
   useEffect(() => {
-    ingestion.listSchemas().then(setSurveys).catch(() => {});
+    ingestion.listSchemas().then(setSurveys).catch(() => { });
   }, []);
 
   // Load shared data when active survey changes
@@ -53,19 +57,23 @@ export default function AnalysisPage() {
       return;
     }
 
-    ingestion.getSubmissions(activeSurvey.id, false).then((subs) => {
+    ingestion.getSubmissions(activeSurvey.id, false).then((subs: any[]) => {
       setSubmissions(subs);
       // Load quality scores for all submissions
       const scoreMap = new Map<string, any>();
-      const fetches = subs.map((sub) =>
+      const fetches = subs.map((sub: any) =>
         quality
           .getScore(sub.id)
           .then((s) => scoreMap.set(sub.id, s))
-          .catch(() => {})
+          .catch(() => { })
       );
       Promise.all(fetches).then(() => setQualityScores(new Map(scoreMap)));
-    }).catch(() => {});
+    }).catch(() => { });
   }, [activeSurvey]);
+
+  console.log("Active Survey:", activeSurvey);
+  console.log("Submissions:", submissions);
+  console.log("Quality Scores:", qualityScores);
 
   return (
     <div className="flex flex-col h-screen">
@@ -85,7 +93,7 @@ export default function AnalysisPage() {
               }}
             >
               <option value="">Select a survey...</option>
-              {surveys.map((s) => (
+              {(surveys || []).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.title} (v{s.version_id})
                 </option>
@@ -107,7 +115,7 @@ export default function AnalysisPage() {
             </div>
           </button>
           <button
-            onClick={() => ingestion.listSchemas().then(setSurveys).catch(() => {})}
+            onClick={() => ingestion.listSchemas().then(setSurveys).catch(() => { })}
             className="btn-ghost p-2"
             title="Refresh surveys"
           >
@@ -153,6 +161,28 @@ export default function AnalysisPage() {
           <div className={activeTab === "simulation" ? "" : "hidden"}><SimulationTab /></div>
           <div className={activeTab === "chat" ? "" : "hidden"}><ChatTab /></div>
         </div>
+      </div>
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={cn(
+              "pointer-events-auto px-4 py-3 rounded-lg shadow-lg border flex items-center justify-between gap-4 animate-slide-in-right",
+              toast.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" :
+                toast.type === "error" ? "bg-red-50 border-red-200 text-red-800" :
+                  "bg-blue-50 border-blue-200 text-blue-800"
+            )}
+          >
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button onClick={() => removeToast(toast.id)} className="text-current opacity-50 hover:opacity-100">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
