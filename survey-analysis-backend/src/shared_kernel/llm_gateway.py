@@ -67,23 +67,58 @@ class LLMGateway:
         self, model: str, messages: list[dict], temperature: float, max_tokens: int
     ) -> LLMResponse:
         import os
-        # Get API key for OpenRouter models
-        api_key = os.getenv('OPENROUTER_API_KEY') if model.startswith('openrouter/') else None
+        
+        # Get keys from environment
+        or_key = os.getenv('OPENROUTER_API_KEY')
+        google_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        
+        # Clean keys (ignore placeholders)
+        if or_key == "your_key_here": or_key = None
+        if google_key == "your_key_here": google_key = None
+        
+        # Heuristic: if model name has no provider prefix and we have an OR key, assume OpenRouter
+        # but only if it's not a known direct provider prefix like 'gemini/' or 'gpt-'
+        actual_model = model
+        api_key = None
+        
+        if "/" not in model:
+            # Simple model name like "gemini-2.0-flash"
+            if or_key:
+                actual_model = f"openrouter/{model}"
+                api_key = or_key
+            elif google_key and model.startswith("gemini"):
+                actual_model = f"gemini/{model}"
+                api_key = google_key
+        elif model.startswith("openrouter/"):
+            api_key = or_key
+        elif model.startswith("gemini/"):
+            api_key = google_key
+        else:
+            # Fallback: if it's "google/..." it's often OpenRouter's naming convention
+            if model.startswith("google/") and or_key:
+                actual_model = f"openrouter/{model}"
+                api_key = or_key
+
+        if not api_key:
+            logger.error("No API key found for model: %s. Please check your .env file.", actual_model)
+            raise ValueError(f"Missing API key for {actual_model}")
+
+        logger.info("Calling LLM: %s", actual_model)
         
         response = await acompletion(
-            model=model,
+            model=actual_model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
             timeout=self._settings.request_timeout,
             num_retries=self._settings.max_retries,
-            api_key=api_key,  # Pass API key explicitly for OpenRouter
+            api_key=api_key,
         )
         content = response.choices[0].message.content or ""
         usage = response.usage
         return LLMResponse(
             content=content,
-            model_used=model,
+            model_used=actual_model,
             prompt_tokens=usage.prompt_tokens if usage else 0,
             completion_tokens=usage.completion_tokens if usage else 0,
             total_tokens=usage.total_tokens if usage else 0,

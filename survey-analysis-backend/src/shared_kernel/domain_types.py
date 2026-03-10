@@ -58,6 +58,14 @@ class SourceFormat(StrEnum):
 class PersonaType(StrEnum):
     PREDEFINED = "PREDEFINED"
     CUSTOM = "CUSTOM"
+    EXTRACTED = "EXTRACTED"
+
+
+class JobStatus(StrEnum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class ChatSessionType(StrEnum):
