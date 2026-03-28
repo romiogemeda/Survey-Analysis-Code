@@ -45,7 +45,7 @@ class AppSettings(BaseSettings):
     app_name: str = "Survey Analysis Engine"
     debug: bool = False
     log_level: str = "INFO"
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]
+    cors_origins: list[str] = ["http://localhost:3000"]
     sentry_dsn: str | None = None
 
     database: DatabaseSettings = DatabaseSettings()

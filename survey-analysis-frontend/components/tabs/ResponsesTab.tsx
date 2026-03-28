@@ -24,14 +24,21 @@ export default function ResponsesTab() {
   const questions: QuestionDefinition[] = activeSurvey?.question_definitions ?? [];
 
   const filtered = useMemo(() => {
-    let rows = [...(submissions || [])];
+    let rows = [...submissions];
     if (filterValid === "valid") rows = rows.filter((r) => r.is_valid);
     if (filterValid === "invalid") rows = rows.filter((r) => !r.is_valid);
     if (filterGrade !== "all") {
-      rows = rows.filter((r) => r.grade === filterGrade);
+      rows = rows.filter((r) => qualityScores.get(r.id)?.grade === filterGrade);
+    }
+    if (filterText.trim()) {
+      const q = filterText.toLowerCase();
+      rows = rows.filter((r) => {
+        const vals = Object.values(r.raw_responses).map((v) => String(v).toLowerCase());
+        return vals.some((v) => v.includes(q)) || r.id.toLowerCase().includes(q);
+      });
     }
     return rows;
-  }, [submissions, filterValid, filterGrade]);
+  }, [submissions, filterValid, filterGrade, filterText, qualityScores]);
 
   const sorted = useMemo(() => {
     const rows = [...filtered];

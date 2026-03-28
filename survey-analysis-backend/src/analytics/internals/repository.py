@@ -2,12 +2,12 @@
 
 import logging
 from uuid import UUID
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared_kernel import CorrelationResultRecord, InsightRecord, InsightSeverity
 from src.analytics.models.orm import (
-    CorrelationResultModel, ExecutiveSummaryModel, InsightModel, PinnedAnalysisItemModel
+    CorrelationResultModel, ExecutiveSummaryModel, InsightModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -128,30 +128,3 @@ class AnalyticsRepository:
             "quality_filter_applied": r.quality_filter_applied,
             "generated_at": r.generated_at.isoformat(),
         }
-
-    # ── Pinned Items ─────────────────────────────
-
-    async def save_pinned_item(
-        self, survey_schema_id: UUID, item_type: str, content_json: dict, display_order: int = 0
-    ) -> PinnedAnalysisItemModel:
-        model = PinnedAnalysisItemModel(
-            survey_schema_id=survey_schema_id,
-            item_type=item_type,
-            content_json=content_json,
-            display_order=display_order,
-        )
-        self._session.add(model)
-        await self._session.flush()
-        return model
-
-    async def get_pinned_items(self, survey_schema_id: UUID) -> list[PinnedAnalysisItemModel]:
-        stmt = select(PinnedAnalysisItemModel).where(
-            PinnedAnalysisItemModel.survey_schema_id == survey_schema_id
-        ).order_by(PinnedAnalysisItemModel.display_order.asc())
-        result = await self._session.execute(stmt)
-        return list(result.scalars().all())
-
-    async def delete_pinned_item(self, item_id: UUID) -> None:
-        stmt = delete(PinnedAnalysisItemModel).where(PinnedAnalysisItemModel.id == item_id)
-        await self._session.execute(stmt)
-        await self._session.flush()

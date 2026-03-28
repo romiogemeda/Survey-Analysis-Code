@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared_kernel import LLMRequest, PersonaType, JobStatus, get_db_session, llm_gateway
+from src.shared_kernel import LLMRequest, PersonaType, get_db_session, llm_gateway
 from src.simulation.internals.repository import SimulationRepository
 
 logger = logging.getLogger(__name__)
@@ -41,12 +41,6 @@ class RunSimulationRequest(BaseModel):
     num_responses: int = 1
 
 
-class BulkSimulationRequest(BaseModel):
-    survey_schema_id: UUID
-    persona_id: UUID
-    num_responses: int
-
-
 # ── Default Persona Library (FR-14) ──────────────
 
 DEFAULT_PERSONAS = [
@@ -73,7 +67,6 @@ class SimulationService:
     """Public simulation service."""
 
     def __init__(self, session: AsyncSession) -> None:
-        self._db = session
         self._repo = SimulationRepository(session)
 
     async def seed_default_personas(self) -> list[dict]:
@@ -190,92 +183,6 @@ class SimulationService:
             for m in models
         ]
 
-    # ── Job Management ────────────────────────────
-
-    async def start_bulk_simulation(self, req: BulkSimulationRequest) -> dict:
-        # 1. Create Job record
-        job = await self._repo.create_job(req.survey_schema_id, req.num_responses)
-        
-        # 2. Trigger Celery task
-        # We import here to avoid circular dependencies
-        from workers.simulation_tasks import bulk_generate_simulation_task
-        bulk_generate_simulation_task.delay(
-            str(req.survey_schema_id), str(req.persona_id), str(job.id)
-        )
-        
-        return {
-            "job_id": str(job.id),
-            "status": job.status,
-            "total_requested": job.total_requested
-        }
-
-    async def get_job_status(self, job_id: UUID) -> dict:
-        job = await self._repo.get_job(job_id)
-        if not job:
-            raise HTTPException(404, "Job not found")
-            
-        return {
-            "job_id": str(job.id),
-            "status": job.status,
-            "total_requested": job.total_requested,
-            "processed_count": job.processed_count,
-            "error_message": job.error_message,
-            "updated_at": job.updated_at.isoformat()
-        }
-
-    # ── Persona Extraction ───────────────────────
-
-    async def extract_personas_from_data(self, survey_schema_id: UUID) -> list[dict]:
-        """Analyze real survey data and extract representative AI personas."""
-        from src.ingestion.interfaces.api import IngestionService
-        ing = IngestionService(self._db)
-        
-        # Fetch sample of real submissions (e.g., top 100)
-        submissions = await ing.get_submissions(survey_schema_id, valid_only=True)
-        if not submissions:
-            raise HTTPException(400, "No real survey data found to extract personas from.")
-            
-        sample_data = [s.raw_responses for s in submissions[:100]]
-        
-        response = await llm_gateway.complete(LLMRequest(
-            system_prompt=(
-                "Analyze the provided survey response data and identify 3-4 representative "
-                "personas that capture the diverse viewpoints and demographics in the data. "
-                "For each persona, provide:\n"
-                "1. name: A catchy name for the persona.\n"
-                "2. description_prompt: A descriptive paragraph about who they are.\n"
-                "3. parsed_parameters: A JSON object with age (int), gender (str), "
-                "personality_traits (list[str]), patience_level (1-10), tech_savviness (1-10).\n\n"
-                "Return ONLY a JSON array of objects."
-            ),
-            user_prompt=f"Extract personas from this survey data:\n{json.dumps(sample_data)}",
-        ))
-        
-        try:
-            extracted_personas = _extract_json(response.content)
-            if not isinstance(extracted_personas, list):
-                extracted_personas = [extracted_personas]
-        except (json.JSONDecodeError, ValueError):
-            logger.error("Failed to parse extracted personas JSON")
-            raise HTTPException(500, "AI failed to synthesize personas. Please try again.")
-
-        results = []
-        for p in extracted_personas:
-            model = await self._repo.save_persona(
-                name=p.get("name", "Extracted Persona"),
-                persona_type=PersonaType.EXTRACTED,
-                description_prompt=p.get("description_prompt"),
-                parsed_parameters=p.get("parsed_parameters", {})
-            )
-            results.append({
-                "id": str(model.id),
-                "name": model.name,
-                "type": model.type,
-                "description_prompt": model.description_prompt
-            })
-            
-        return results
-
 
 # ── Routes ────────────────────────────────────────
 
@@ -308,14 +215,6 @@ async def get_persona(persona_id: UUID, session: AsyncSession = Depends(get_db_s
     return persona
 
 
-@router.post("/personas/extract/{survey_schema_id}")
-async def extract_personas(
-    survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
-):
-    service = SimulationService(session)
-    return await service.extract_personas_from_data(survey_schema_id)
-
-
 @router.post("/run")
 async def run_simulation(
     req: RunSimulationRequest, session: AsyncSession = Depends(get_db_session)
@@ -333,22 +232,6 @@ async def run_simulation(
     return await service.run_simulation(
         req.survey_schema_id, req.persona_id, questions, req.num_responses
     )
-
-
-@router.post("/jobs")
-async def start_bulk_simulation(
-    req: BulkSimulationRequest, session: AsyncSession = Depends(get_db_session)
-):
-    service = SimulationService(session)
-    return await service.start_bulk_simulation(req)
-
-
-@router.get("/jobs/{job_id}")
-async def get_job_status(
-    job_id: UUID, session: AsyncSession = Depends(get_db_session)
-):
-    service = SimulationService(session)
-    return await service.get_job_status(job_id)
 
 
 @router.get("/responses/{survey_schema_id}")

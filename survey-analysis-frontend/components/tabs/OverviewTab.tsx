@@ -41,7 +41,7 @@ function StatCard({
 function buildTrendData(submissions: Submission[]) {
   const dayMap = new Map<string, { started: number; completed: number }>();
 
-  for (const sub of submissions || []) {
+  for (const sub of submissions) {
     // Response trend: group by started_at date
     const startDate = sub.started_at
       ? new Date(sub.started_at).toISOString().slice(0, 10)
@@ -65,12 +65,14 @@ function buildTrendData(submissions: Submission[]) {
   }
 
   // If no timestamp data, fall back to received_at for a basic volume chart
-  for (const sub of submissions || []) {
-    const date = new Date(sub.received_at).toISOString().slice(0, 10);
-    const entry = dayMap.get(date) || { started: 0, completed: 0 };
-    entry.started++;
-    entry.completed += sub.completed_at ? 1 : 0;
-    dayMap.set(date, entry);
+  if (dayMap.size === 0) {
+    for (const sub of submissions) {
+      const date = new Date(sub.received_at).toISOString().slice(0, 10);
+      const entry = dayMap.get(date) || { started: 0, completed: 0 };
+      entry.started++;
+      entry.completed += sub.completed_at ? 1 : 0;
+      dayMap.set(date, entry);
+    }
   }
 
   return Array.from(dayMap.entries())
@@ -95,14 +97,14 @@ export default function OverviewTab() {
 
   const trendData = useMemo(() => buildTrendData(submissions), [submissions]);
 
-  const completedCount = (submissions || []).filter((s) => s.completed_at).length;
-  const startedCount = (submissions || []).filter((s) => s.started_at).length;
+  const completedCount = submissions.filter((s) => s.completed_at).length;
+  const startedCount = submissions.filter((s) => s.started_at).length;
   const abandonedCount = startedCount - completedCount;
   const completionRate =
     startedCount > 0 ? Math.round((completedCount / startedCount) * 100) : 0;
 
   const gradeStats = useMemo(() => {
-    const scores = Array.from((qualityScores || new Map()).values());
+    const scores = Array.from(qualityScores.values());
     return {
       HIGH: scores.filter((s) => s.grade === "HIGH").length,
       MEDIUM: scores.filter((s) => s.grade === "MEDIUM").length,
