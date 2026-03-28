@@ -2,9 +2,9 @@
 
 import logging
 from uuid import UUID
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.simulation.models.orm import PersonaModel, SimulatedResponseModel, SimulationJobModel
+from src.simulation.models.orm import PersonaModel, SimulatedResponseModel
 
 logger = logging.getLogger(__name__)
 
@@ -73,36 +73,3 @@ class SimulationRepository:
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
-
-    # ── Simulation Jobs ──────────────────────────
-
-    async def create_job(self, survey_schema_id: UUID, total_requested: int) -> SimulationJobModel:
-        job = SimulationJobModel(
-            survey_schema_id=survey_schema_id,
-            total_requested=total_requested,
-            status="PENDING"
-        )
-        self._session.add(job)
-        await self._session.flush()
-        return job
-
-    async def get_job(self, job_id: UUID) -> SimulationJobModel | None:
-        stmt = select(SimulationJobModel).where(SimulationJobModel.id == job_id)
-        result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def update_job_progress(self, job_id: UUID, processed_count: int, status: str = "PROCESSING"):
-        stmt = update(SimulationJobModel).where(SimulationJobModel.id == job_id).values(
-            processed_count=processed_count,
-            status=status
-        )
-        await self._session.execute(stmt)
-        await self._session.flush()
-
-    async def mark_job_failed(self, job_id: UUID, error_message: str):
-        stmt = update(SimulationJobModel).where(SimulationJobModel.id == job_id).values(
-            status="FAILED",
-            error_message=error_message
-        )
-        await self._session.execute(stmt)
-        await self._session.flush()

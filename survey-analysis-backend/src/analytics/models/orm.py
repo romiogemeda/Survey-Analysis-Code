@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, Float, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, Float, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from src.shared_kernel import Base
@@ -47,19 +47,5 @@ class ExecutiveSummaryModel(Base):
     llm_model_used: Mapped[str] = mapped_column(String(100), nullable=False)
     quality_filter_applied: Mapped[bool] = mapped_column(Boolean, default=False)
     generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-
-class PinnedAnalysisItemModel(Base):
-    __tablename__ = "pinned_analysis_items"
-    __table_args__ = {"schema": "analytics"}
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_schema_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    item_type: Mapped[str] = mapped_column(String(20), nullable=False)  # CHART, TEXT
-    content_json: Mapped[dict] = mapped_column(JSON, nullable=False)
-    display_order: Mapped[int] = mapped_column(nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

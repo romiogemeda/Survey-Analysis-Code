@@ -33,22 +33,3 @@ class SimulatedResponseModel(Base):
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-
-
-class SimulationJobModel(Base):
-    __tablename__ = "simulation_jobs"
-    __table_args__ = {"schema": "simulation"}
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_schema_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
-    total_requested: Mapped[int] = mapped_column(nullable=False)
-    processed_count: Mapped[int] = mapped_column(nullable=False, default=0)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc)
-    )
