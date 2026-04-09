@@ -53,6 +53,7 @@ class IngestionStatus(StrEnum):
 class SourceFormat(StrEnum):
     JSON = "JSON"
     CSV = "CSV"
+    SIMULATION = "SIMULATION"
 
 
 class PersonaType(StrEnum):
