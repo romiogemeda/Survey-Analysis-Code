@@ -98,6 +98,8 @@ export interface SimulatedResponse {
   synthetic_answers: Record<string, unknown>;
   is_simulated: boolean;
   llm_model_used: string;
+  quality_grade?: QualityGrade;
+  quality_score?: number;
   quality_grade?: "HIGH" | "MEDIUM" | "LOW";
   quality_score?: number;
 }
@@ -215,4 +217,15 @@ export interface AnalysisResult {
     pairs_analyzed: number;
     significant_findings: number;
   };
+}
+
+export interface RunBatchRequest {
+  survey_schema_id: string;
+  items: Array<{ persona_id: string; num_responses: number }>;
+  concurrency?: number;
+}
+
+export interface PromotionResult {
+  promoted: number;
+  survey_schema_id: string;
 }
