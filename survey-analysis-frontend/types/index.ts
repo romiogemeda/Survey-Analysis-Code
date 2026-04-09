@@ -100,6 +100,23 @@ export interface SimulatedResponse {
   llm_model_used: string;
   quality_grade?: QualityGrade;
   quality_score?: number;
+  quality_grade?: "HIGH" | "MEDIUM" | "LOW";
+  quality_score?: number;
+}
+
+export interface BatchItem {
+  persona_id: string;
+  num_responses?: number;
+}
+
+export interface RunBatchRequest {
+  survey_schema_id: string;
+  items: BatchItem[];
+}
+
+export interface PromotionResult {
+  promoted: number;
+  skipped: number;
 }
 
 export interface ChatSession {

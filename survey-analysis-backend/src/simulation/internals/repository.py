@@ -55,6 +55,23 @@ class SimulationRepository:
         await self._session.flush()
         return model
 
+    async def save_simulated_responses(
+        self,
+        models_data: list[dict],
+    ) -> list[SimulatedResponseModel]:
+        models = []
+        for item in models_data:
+            models.append(SimulatedResponseModel(
+                survey_schema_id=item["survey_schema_id"],
+                persona_id=item["persona_id"],
+                synthetic_answers=item["synthetic_answers"],
+                is_simulated=True,
+                llm_model_used=item["llm_model_used"],
+            ))
+        self._session.add_all(models)
+        await self._session.flush()
+        return models
+
     async def get_simulated_responses(
         self, survey_schema_id: UUID
     ) -> list[SimulatedResponseModel]:
@@ -73,3 +90,12 @@ class SimulationRepository:
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def delete_all_for_schema(self, survey_schema_id: UUID) -> int:
+        from sqlalchemy import delete
+        stmt = delete(SimulatedResponseModel).where(
+            SimulatedResponseModel.survey_schema_id == survey_schema_id
+        )
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount
