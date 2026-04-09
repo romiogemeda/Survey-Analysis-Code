@@ -197,6 +197,11 @@ class IngestionService:
     async def get_submission(self, submission_id: UUID) -> SubmissionRecord | None:
         return await self._repo.get_submission(submission_id)
 
+    async def save_submission(self, submission: SubmissionRecord) -> SubmissionRecord:
+        """Insert a single submission (used by Simulation data promotion bridge)."""
+        await self._repo.save_submissions([submission])
+        return submission
+
     async def auto_ingest(self, file: UploadFile) -> dict:
         """
         Upload-first flow: parse file, infer a schema from the data, create it,

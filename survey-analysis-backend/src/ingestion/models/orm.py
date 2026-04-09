@@ -28,7 +28,7 @@ class SubmissionModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     survey_schema_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     raw_responses: Mapped[dict] = mapped_column(JSON, nullable=False)
-    source_format: Mapped[str] = mapped_column(String(10), nullable=False)
+    source_format: Mapped[str] = mapped_column(String(20), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     received_at: Mapped[datetime] = mapped_column(
