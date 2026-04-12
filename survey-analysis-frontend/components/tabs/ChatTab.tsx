@@ -19,6 +19,24 @@ export default function ChatTab() {
   const [extracting, setExtracting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const activePersona =
+    session?.session_type === "PERSONA_INTERVIEW"
+      ? personas.find((p) => p.id === selectedPersona)
+      : null;
+
+  const getPersonaBadgeColor = (type: string) => {
+    switch (type) {
+      case "EXTRACTED":
+        return "bg-purple-100 text-purple-700 border-purple-200";
+      case "PREDEFINED":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "CUSTOM":
+        return "bg-amber-100 text-amber-700 border-amber-200";
+      default:
+        return "bg-surface-100 text-surface-700 border-surface-200";
+    }
+  };
+
   useEffect(() => {
     simulation.listPersonas().then(setPersonas).catch(() => {});
   }, []);
@@ -228,6 +246,40 @@ export default function ChatTab() {
         <div className="flex-1 card flex flex-col min-h-0">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {activePersona && (
+              <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 mb-6 animate-fade-in shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <h3 className="font-display font-bold text-lg text-surface-900 leading-none">
+                    {activePersona.name}
+                  </h3>
+                  <span
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border",
+                      getPersonaBadgeColor(activePersona.type)
+                    )}
+                  >
+                    {activePersona.type}
+                  </span>
+                </div>
+                {activePersona.parsed_parameters?.personality_traits &&
+                Array.isArray(activePersona.parsed_parameters.personality_traits) &&
+                activePersona.parsed_parameters.personality_traits.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {activePersona.parsed_parameters.personality_traits
+                      .slice(0, 5)
+                      .map((t: string) => (
+                        <span
+                          key={t}
+                          className="px-2 py-0.5 bg-white border border-surface-300 rounded text-[10px] font-medium text-surface-600 shadow-sm"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {!session ? (
               <div className="flex items-center justify-center h-full text-surface-400 text-sm">
                 Start a session to begin chatting
