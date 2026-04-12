@@ -16,6 +16,7 @@ export default function ChatTab() {
   const [mode, setMode] = useState<"DATA_QUERY" | "PERSONA_INTERVIEW">("DATA_QUERY");
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersona, setSelectedPersona] = useState<string>("");
+  const [extracting, setExtracting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,6 +43,25 @@ export default function ChatTab() {
       addToast("Chat session started", "success");
     } catch {
       addToast("Failed to start session", "error");
+    }
+  };
+
+  const handleExtractPersonas = async () => {
+    if (!activeSurvey) {
+      addToast("Select a survey first", "error");
+      return;
+    }
+    setExtracting(true);
+    addToast("Extracting personas from data... this may take a moment", "info");
+    try {
+      await chat.extractPersonas(activeSurvey.id);
+      const updated = await simulation.listPersonas();
+      setPersonas(updated);
+      addToast("Successfully extracted personas", "success");
+    } catch {
+      addToast("Failed to extract personas", "error");
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -130,22 +150,31 @@ export default function ChatTab() {
 
             {/* Persona Selector */}
             {mode === "PERSONA_INTERVIEW" && (
-              <div>
-                <label className="text-xs font-medium text-surface-500 mb-1.5 block">
-                  Select Persona
-                </label>
-                <select
-                  className="input text-xs"
-                  value={selectedPersona}
-                  onChange={(e) => setSelectedPersona(e.target.value)}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-surface-500 mb-1.5 block">
+                    Select Persona
+                  </label>
+                  <select
+                    className="input text-xs"
+                    value={selectedPersona}
+                    onChange={(e) => setSelectedPersona(e.target.value)}
+                  >
+                    <option value="">Choose a persona...</option>
+                    {personas.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={handleExtractPersonas}
+                  disabled={!activeSurvey || extracting}
+                  className="btn-secondary w-full text-xs"
                 >
-                  <option value="">Choose a persona...</option>
-                  {personas.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  {extracting ? "Extracting..." : "Auto-Extract from Data"}
+                </button>
               </div>
             )}
 

@@ -59,6 +59,7 @@ class SourceFormat(StrEnum):
 class PersonaType(StrEnum):
     PREDEFINED = "PREDEFINED"
     CUSTOM = "CUSTOM"
+    EXTRACTED = "EXTRACTED"
 
 
 class ChatSessionType(StrEnum):
@@ -132,3 +133,13 @@ class InsightRecord(BaseModel):
     insight_text: str
     severity: InsightSeverity
     generated_at: datetime = Field(default_factory=utcnow)
+
+
+class PersonaRecord(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    type: PersonaType
+    description_prompt: str | None = None
+    parsed_parameters: dict = Field(default_factory=dict)
+    typical_response_patterns: list[str] | None = None
+    created_at: datetime = Field(default_factory=utcnow)

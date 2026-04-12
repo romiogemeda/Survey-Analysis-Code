@@ -137,6 +137,22 @@ class SimulationService:
             "parsed_parameters": m.parsed_parameters,
         }
 
+    async def create_persona(
+        self, name: str, persona_type: str, description_prompt: str | None,
+        parsed_parameters: dict
+    ) -> dict:
+        """Create a persona directly via the repository."""
+        model = await self._repo.save_persona(
+            name=name, persona_type=persona_type,
+            description_prompt=description_prompt,
+            parsed_parameters=parsed_parameters,
+        )
+        return {
+            "id": str(model.id), "name": model.name, "type": model.type,
+            "description_prompt": model.description_prompt,
+            "parsed_parameters": model.parsed_parameters,
+        }
+
     async def run_simulation(
         self, survey_schema_id: UUID, persona_id: UUID,
         questions: list[dict], num_responses: int = 1

@@ -43,6 +43,11 @@ class SendMessageRequest(BaseModel):
     content: str
 
 
+class ExtractPersonasRequest(BaseModel):
+    survey_schema_id: UUID
+
+
+
 class MessageResponse(BaseModel):
     role: str
     content: str
@@ -297,8 +302,9 @@ class ChatAssistantService:
 
         response = await llm_gateway.complete(LLMRequest(
             system_prompt=(
-                f"You are a simulated survey respondent with these traits:\n{persona_context}\n\n"
-                "Answer questions in character about why you responded the way you did. "
+                f"You are a simulated survey respondent with these traits and common answer patterns:\n{persona_context}\n\n"
+                "Answer questions in character. If you have typical_response_patterns, MUST strongly ground "
+                "your answers in those specific observed response tendencies to explain WHY you answered the way you did. "
                 "Be authentic to the persona's personality and demographics."
             ),
             user_prompt=message,
@@ -334,6 +340,87 @@ async def get_history(
 ):
     service = ChatAssistantService(session)
     return await service.get_history(session_id)
+
+
+@router.post("/extract-personas")
+async def extract_personas(
+    req: ExtractPersonasRequest, session: AsyncSession = Depends(get_db_session)
+):
+    from src.ingestion.interfaces.api import IngestionService
+    from src.simulation.interfaces.api import SimulationService
+    from src.shared_kernel.domain_types import PersonaType
+    import random
+    import re
+
+    ing = IngestionService(session)
+    sim = SimulationService(session)
+
+    subs = await ing.get_submissions(req.survey_schema_id, valid_only=True)
+    if not subs:
+        raise HTTPException(400, "No submissions available to extract personas from")
+    
+    raw_responses = [s.raw_responses for s in subs]
+    if len(raw_responses) > 50:
+        raw_responses = random.sample(raw_responses, 50)
+    
+    json_responses = json.dumps(raw_responses, indent=2)
+    N = len(raw_responses)
+
+    system_prompt = (
+        "You are a survey data analyst. Given a set of survey responses,\n"
+        "identify 3-5 distinct respondent archetypes that represent the data.\n"
+        "Each archetype should capture a meaningful pattern of how a group\n"
+        "of respondents answered. Respond strictly as JSON."
+    )
+    user_prompt = (
+        f"Here are {N} survey responses:\n{json_responses}\n\n"
+        "Identify 3-5 distinct archetypes. Output a JSON array where each\n"
+        "element has the following exact shape:\n"
+        "{\n"
+        '  "name": "<short descriptive name>",\n'
+        '  "description": "<1-2 sentence description>",\n'
+        '  "personality_traits": ["<trait1>", "<trait2>", ...],  // 3-5 traits\n'
+        '  "typical_response_patterns": ["<pattern1>", "<pattern2>", ...]  // 3-5 specific\n'
+        "                                                              // observed answer tendencies\n"
+        "}\n\n"
+        "Output ONLY the JSON array. No markdown, no preamble, no explanation."
+    )
+
+    response = await llm_gateway.complete(LLMRequest(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt
+    ))
+
+    # Strip markdown fences
+    cleaned = re.sub(r"^```(?:json)?\s*", "", response.content.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+
+    try:
+        archetypes = json.loads(cleaned)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(500, "Failed to parse LLM response into JSON")
+    
+    if not isinstance(archetypes, list):
+        raise HTTPException(500, "Expected JSON array from LLM")
+    
+    created_personas = []
+    for arch in archetypes:
+        parsed_params = {
+            "personality_traits": arch.get("personality_traits", []),
+            "typical_response_patterns": arch.get("typical_response_patterns", [])
+        }
+        name = arch.get("name", "Extracted Persona")
+        desc = arch.get("description", "Extracted from survey data")
+        
+        created = await sim.create_persona(
+            name=name,
+            persona_type=PersonaType.EXTRACTED,
+            description_prompt=desc,
+            parsed_parameters=parsed_params
+        )
+        created_personas.append(created)
+    
+    return created_personas
 
 
 @router.websocket("/ws/{session_id}")
