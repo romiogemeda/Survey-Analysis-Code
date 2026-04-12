@@ -292,21 +292,47 @@ class ChatAssistantService:
         self, message: str, persona_id: UUID | None
     ) -> MessageResponse:
         """FR-23: Chat with a simulated persona."""
-        persona_context = "a typical survey respondent"
+        from src.shared_kernel.domain_types import PersonaType
+        
+        system_prompt = (
+            "You are a simulated survey respondent with these traits and common answer patterns:\n"
+            "a typical survey respondent\n\n"
+            "Answer questions in character. If you have typical_response_patterns, MUST strongly ground "
+            "your answers in those specific observed response tendencies to explain WHY you answered the way you did. "
+            "Be authentic to the persona's personality and demographics."
+        )
+
         if persona_id:
             from src.simulation.interfaces.api import SimulationService
             sim = SimulationService(self._db)
             persona = await sim.get_persona(persona_id)
             if persona:
-                persona_context = json.dumps(persona.get("parsed_parameters", {}))
+                if persona.get("type") == PersonaType.EXTRACTED:
+                    params = persona.get("parsed_parameters", {})
+                    desc = persona.get("description_prompt", "Extracted from survey data")
+                    traits = json.dumps(params.get("personality_traits", []))
+                    patterns = json.dumps(params.get("typical_response_patterns", []), indent=2)
+                    
+                    system_prompt = (
+                        "You are a simulated survey respondent. Your identity:\n"
+                        f"{desc}\n\n"
+                        f"Your personality traits: {traits}\n\n"
+                        "CRITICAL: When answering, ground your responses in these\n"
+                        "observed answer patterns from real respondents like you:\n"
+                        f"{patterns}\n\n"
+                        "Do not invent behaviors that contradict these patterns."
+                    )
+                else:
+                    persona_context = json.dumps(persona.get("parsed_parameters", {}))
+                    system_prompt = (
+                        f"You are a simulated survey respondent with these traits and common answer patterns:\n{persona_context}\n\n"
+                        "Answer questions in character. If you have typical_response_patterns, MUST strongly ground "
+                        "your answers in those specific observed response tendencies to explain WHY you answered the way you did. "
+                        "Be authentic to the persona's personality and demographics."
+                    )
 
         response = await llm_gateway.complete(LLMRequest(
-            system_prompt=(
-                f"You are a simulated survey respondent with these traits and common answer patterns:\n{persona_context}\n\n"
-                "Answer questions in character. If you have typical_response_patterns, MUST strongly ground "
-                "your answers in those specific observed response tendencies to explain WHY you answered the way you did. "
-                "Be authentic to the persona's personality and demographics."
-            ),
+            system_prompt=system_prompt,
             user_prompt=message,
         ))
         return MessageResponse(role=ChatRole.ASSISTANT, content=response.content)
