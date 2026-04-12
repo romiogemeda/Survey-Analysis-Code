@@ -54,10 +54,10 @@ export default function ChatTab() {
     setExtracting(true);
     addToast("Extracting personas from data... this may take a moment", "info");
     try {
-      await chat.extractPersonas(activeSurvey.id);
+      const fetched = await chat.extractPersonas(activeSurvey.id);
       const updated = await simulation.listPersonas();
       setPersonas(updated);
-      addToast("Successfully extracted personas", "success");
+      addToast(`Discovered ${fetched.length} personas from your data`, "success");
     } catch {
       addToast("Failed to extract personas", "error");
     } finally {
@@ -173,7 +173,7 @@ export default function ChatTab() {
                   disabled={!activeSurvey || extracting}
                   className="btn-secondary w-full text-xs"
                 >
-                  {extracting ? "Extracting..." : "Auto-Extract from Data"}
+                  {extracting ? "Discovering..." : "Discover Personas from Data"}
                 </button>
               </div>
             )}
