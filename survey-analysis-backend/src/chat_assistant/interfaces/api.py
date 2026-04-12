@@ -362,8 +362,20 @@ async def extract_personas(
     raw_responses = [s.raw_responses for s in subs]
     if len(raw_responses) > 50:
         raw_responses = random.sample(raw_responses, 50)
-    
+        
     json_responses = json.dumps(raw_responses, indent=2)
+    if len(json_responses) > 8000:
+        truncated_responses = []
+        for resp in raw_responses:
+            trunc_resp = {}
+            for k, v in resp.items():
+                if isinstance(v, str) and len(v) > 200:
+                    trunc_resp[k] = v[:200] + "..."
+                else:
+                    trunc_resp[k] = v
+            truncated_responses.append(trunc_resp)
+        json_responses = json.dumps(truncated_responses, indent=2)
+
     N = len(raw_responses)
 
     system_prompt = (
@@ -386,22 +398,27 @@ async def extract_personas(
         "Output ONLY the JSON array. No markdown, no preamble, no explanation."
     )
 
-    response = await llm_gateway.complete(LLMRequest(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt
-    ))
-
-    # Strip markdown fences
-    cleaned = re.sub(r"^```(?:json)?\s*", "", response.content.strip(), flags=re.IGNORECASE)
-    cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+    async def attempt_extraction(sys_prompt: str) -> list[dict]:
+        res = await llm_gateway.complete(LLMRequest(
+            system_prompt=sys_prompt,
+            user_prompt=user_prompt
+        ))
+        cleaned = re.sub(r"^```(?:json)?\s*", "", res.content.strip(), flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+        parsed = json.loads(cleaned)
+        if not isinstance(parsed, list):
+            raise ValueError("Expected JSON array from LLM")
+        return parsed
 
     try:
-        archetypes = json.loads(cleaned)
+        archetypes = await attempt_extraction(system_prompt)
     except (json.JSONDecodeError, ValueError):
-        raise HTTPException(500, "Failed to parse LLM response into JSON")
-    
-    if not isinstance(archetypes, list):
-        raise HTTPException(500, "Expected JSON array from LLM")
+        # Retry once
+        retry_system = system_prompt + "\n\nCRITICAL: You MUST output ONLY a valid JSON array. No conversational text whatsoever."
+        try:
+            archetypes = await attempt_extraction(retry_system)
+        except (json.JSONDecodeError, ValueError) as err:
+            raise HTTPException(500, f"Failed to parse LLM response into JSON after retry: {err}")
     
     created_personas = []
     for arch in archetypes:
