@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Submission } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
+import { simulation, ingestion } from "@/lib/api";
 import {
   LineChart,
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -94,6 +98,22 @@ function buildTrendData(submissions: Submission[]) {
 
 export default function OverviewTab() {
   const { activeSurvey, submissions, qualityScores, setActiveTab } = useAppStore();
+
+  const [simulatedResponses, setSimulatedResponses] = useState<any[]>([]);
+  const [realSubmissionCount, setRealSubmissionCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!activeSurvey) return;
+
+    Promise.all([
+      simulation.getResponses(activeSurvey.id).catch(() => []),
+      ingestion.getSubmissions(activeSurvey.id, false).catch(() => [])
+    ]).then(([simRes, realSubs]) => {
+      setSimulatedResponses(simRes);
+      const rc = realSubs.filter((s) => s.raw_responses?._is_simulated !== true).length;
+      setRealSubmissionCount(rc);
+    });
+  }, [activeSurvey]);
 
   const trendData = useMemo(() => buildTrendData(submissions), [submissions]);
 
@@ -323,6 +343,86 @@ export default function OverviewTab() {
             </div>
           </button>
         </div>
+      </div>
+
+      {/* Simulation Overview Widget */}
+      <div className="card-padded bg-gradient-to-br from-indigo-50/50 to-purple-50/50 border-purple-100/50">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="section-heading text-purple-950 flex items-center gap-2">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="text-purple-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              Simulation Overview
+            </h3>
+            <p className="text-xs text-purple-700/70 mt-1">
+              Data composition of real vs. synthesized responses
+            </p>
+          </div>
+          {simulatedResponses.length > 0 && (
+            <button
+              onClick={() => setActiveTab("simulation")}
+              className="text-xs px-3 py-1.5 bg-white border border-purple-200 text-purple-700 rounded-lg shadow-sm hover:bg-purple-50 font-medium transition-colors"
+            >
+              Manage Simulation →
+            </button>
+          )}
+        </div>
+        
+        {simulatedResponses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center bg-white/60 rounded-xl border border-white/80">
+            <p className="text-sm text-surface-600 mb-3">No simulations yet — generate synthetic data to augment your analysis</p>
+            <button
+              onClick={() => setActiveTab("simulation")}
+              className="text-sm px-4 py-2 bg-purple-600 text-white rounded-lg shadow-sm hover:bg-purple-700 font-medium transition-colors"
+            >
+              Go to Simulation →
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/60 rounded-xl p-4 border border-white/80">
+                <p className="stat-label">Total Simulated Responses</p>
+                <p className="stat-value text-purple-900 mt-1">
+                  {simulatedResponses.length}
+                </p>
+              </div>
+              
+              <div className="bg-white/60 rounded-xl p-4 border border-white/80">
+                <p className="stat-label">Personas Used</p>
+                <p className="stat-value text-purple-900 mt-1">
+                  {new Set(simulatedResponses.map(r => r.persona_id)).size}
+                </p>
+              </div>
+            </div>
+
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Real Submissions", value: realSubmissionCount },
+                      { name: "Simulated Submissions", value: simulatedResponses.length }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label
+                  >
+                    <Cell fill="#4c6ef5" />
+                    <Cell fill="#7950f2" />
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: "8px", border: "1px solid #e9ecef", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Recent Submissions */}
