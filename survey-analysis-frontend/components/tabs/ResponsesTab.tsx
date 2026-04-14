@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, useRef, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Submission, QualityScore, QuestionDefinition } from "@/types";
 import { cn, formatDate, gradeBadgeClass } from "@/lib/utils";
@@ -20,6 +20,102 @@ export default function ResponsesTab() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(25);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(event.target as Node)) {
+        setIsExportOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const exportAsJSON = () => {
+    const data = filtered.map((sub) => {
+      const score = qualityScores.get(sub.id);
+      return {
+        id: sub.id,
+        received_at: sub.received_at,
+        is_valid: sub.is_valid,
+        raw_responses: sub.raw_responses,
+        ...(score ? { quality: score } : {})
+      };
+    });
+
+    const dataStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const title = activeSurvey?.title || "survey";
+    const sanitizedTitle = title.replace(/[^a-z0-9_-]/gi, "_");
+    link.download = `${sanitizedTitle}_responses.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsExportOpen(false);
+  };
+
+  function escapeCsv(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    let str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    if (/[",\n\r]/.test(str)) {
+      str = '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  }
+
+  const exportAsCSV = () => {
+    if (!filtered.length) return;
+
+    const headers = [
+      "id",
+      "received_at",
+      "is_valid",
+      ...questions.map(q => q.question_id),
+      "quality_grade",
+      "composite_score",
+      "speed_score",
+      "variance_score",
+      "gibberish_score"
+    ];
+
+    let csvStr = headers.map(escapeCsv).join(",") + "\r\n";
+
+    filtered.forEach((sub) => {
+      const score = qualityScores.get(sub.id);
+      const row = [
+        sub.id,
+        sub.received_at,
+        sub.is_valid,
+        ...questions.map(q => sub.raw_responses[q.question_id]),
+        score?.grade,
+        score?.composite_score,
+        score?.speed_score,
+        score?.variance_score,
+        score?.gibberish_score
+      ];
+      csvStr += row.map(escapeCsv).join(",") + "\r\n";
+    });
+
+    const bom = '\ufeff';
+    const blob = new Blob([bom + csvStr], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const title = activeSurvey?.title || "survey";
+    const sanitizedTitle = title.replace(/[^a-z0-9_-]/gi, "_");
+    link.download = `${sanitizedTitle}_responses.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsExportOpen(false);
+  };
 
   const questions: QuestionDefinition[] = activeSurvey?.question_definitions ?? [];
 
@@ -97,6 +193,34 @@ export default function ResponsesTab() {
             {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
           </select>
           <span className="text-xs text-surface-500 whitespace-nowrap">{filtered.length} of {submissions.length}</span>
+          
+          <div className="relative ml-auto" ref={exportRef}>
+            <button 
+              onClick={() => setIsExportOpen(!isExportOpen)} 
+              className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-2"
+            >
+              Export
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {isExportOpen && (
+              <div className="absolute right-0 mt-2 w-40 bg-white border border-surface-200 rounded-md shadow-lg z-10 py-1">
+                <button
+                  onClick={exportAsCSV}
+                  className="w-full text-left px-4 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                >
+                  Export as CSV
+                </button>
+                <button
+                  onClick={exportAsJSON}
+                  className="w-full text-left px-4 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                >
+                  Export as JSON
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
