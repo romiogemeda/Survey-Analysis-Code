@@ -20,7 +20,7 @@ from collections import Counter
 from uuid import UUID
 
 import numpy as np
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from textblob import TextBlob
@@ -427,7 +427,9 @@ async def batch_sentiment(req: SentimentRequest):
 
 @router.post("/dashboard/{survey_schema_id}")
 async def build_dashboard(
-    survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
+    survey_schema_id: UUID,
+    source: str = Query("all", description="Filter by source: all, real, simulated"),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Build chart payloads for all questions in a survey."""
     from src.ingestion.interfaces.api import IngestionService
@@ -436,6 +438,11 @@ async def build_dashboard(
     if not schema:
         return {"error": "Schema not found"}
     subs = await ing.get_submissions(survey_schema_id, valid_only=True)
+
+    if source == "real":
+        subs = [s for s in subs if not s.raw_responses.get("_is_simulated")]
+    elif source == "simulated":
+        subs = [s for s in subs if s.raw_responses.get("_is_simulated") is True]
 
     service = VisualizationService()
     questions = [q.model_dump() if hasattr(q, 'model_dump') else q

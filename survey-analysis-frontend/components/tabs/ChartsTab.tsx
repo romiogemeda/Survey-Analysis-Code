@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { toPng } from "html-to-image";
 import { useAppStore } from "@/lib/store";
 import { visualization } from "@/lib/api";
 import type { ChartPayload } from "@/types";
@@ -346,9 +347,28 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
     WORD_FREQ_BAR: "Word Frequency",
   };
 
+  const chartRef = useRef<HTMLDivElement>(null);
+  const { addToast } = useAppStore();
+
+  const handleExport = async () => {
+    if (!chartRef.current) return;
+    try {
+      const dataUrl = await toPng(chartRef.current, { backgroundColor: "#ffffff" });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      const sanitizedId = chart.question_id.replace(/[^a-z0-9_-]/gi, "_");
+      a.download = `${sanitizedId}_chart.png`;
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error(err);
+      addToast("Failed to export chart", "error");
+    }
+  };
+
   return (
-    <div className="card-padded animate-slide-up">
-      <div className="flex items-center justify-between mb-4">
+    <div ref={chartRef} className="card-padded animate-slide-up">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <h4 className="text-sm font-display font-semibold text-surface-800">
             {chart.question_text || chart.question_id}
@@ -360,6 +380,17 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
             </span>
           </div>
         </div>
+        <button
+          onClick={handleExport}
+          className="ml-4 p-1.5 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors flex-shrink-0"
+          title="Export as PNG"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
       </div>
 
       {(chart.chart_type === "DONUT" || chart.chart_type === "SENTIMENT_DONUT") && (
@@ -394,22 +425,48 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
 export default function ChartsTab() {
   const { activeSurvey, addToast } = useAppStore();
   const [charts, setCharts] = useState<ChartPayload[]>([]);
+  const [simulatedCharts, setSimulatedCharts] = useState<ChartPayload[]>([]);
+  const [isComparing, setIsComparing] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (comparing: boolean = isComparing) => {
     if (!activeSurvey) return;
     setLoading(true);
     try {
-      const data = await visualization.buildDashboard(activeSurvey.id);
-      setCharts(data);
+      if (comparing) {
+        const [real, sim] = await Promise.all([
+          visualization.buildDashboard(activeSurvey.id, "real"),
+          visualization.buildDashboard(activeSurvey.id, "simulated")
+        ]);
+
+        if (sim.length === 0) {
+          addToast("No simulated data available. Generate some in the Simulation tab.", "info");
+          setIsComparing(false);
+          const all = await visualization.buildDashboard(activeSurvey.id, "all");
+          setCharts(all);
+          setSimulatedCharts([]);
+        } else {
+          setCharts(real);
+          setSimulatedCharts(sim);
+        }
+      } else {
+        const data = await visualization.buildDashboard(activeSurvey.id, "all");
+        setCharts(data);
+        setSimulatedCharts([]);
+      }
     } catch {
       addToast("Failed to build dashboard", "error");
     }
     setLoading(false);
   };
 
+  const handleToggleCompare = (checked: boolean) => {
+    setIsComparing(checked);
+    loadDashboard(checked);
+  };
+
   useEffect(() => {
-    loadDashboard();
+    loadDashboard(isComparing);
   }, [activeSurvey]);
 
   if (!activeSurvey) {
@@ -429,9 +486,21 @@ export default function ChartsTab() {
             Auto-generated charts based on question data types — IDENTIFIER and DATETIME columns are skipped
           </p>
         </div>
-        <button onClick={loadDashboard} disabled={loading} className="btn-secondary">
-          {loading ? "Loading..." : "Refresh Charts"}
-        </button>
+        <div className="flex items-center gap-6">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={isComparing} 
+              onChange={(e) => handleToggleCompare(e.target.checked)}
+              disabled={loading}
+              className="h-4 w-4 rounded border-brand-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+            />
+            <span className="text-sm font-medium text-surface-700">Compare Real vs Simulated</span>
+          </label>
+          <button onClick={() => loadDashboard(isComparing)} disabled={loading} className="btn-secondary">
+            {loading ? "Loading..." : "Refresh Charts"}
+          </button>
+        </div>
       </div>
 
       {charts.length === 0 && !loading ? (
@@ -439,6 +508,34 @@ export default function ChartsTab() {
           <p className="text-surface-500">
             No chart data available. Upload submissions first, then refresh.
           </p>
+        </div>
+      ) : isComparing ? (
+        <div className="space-y-8">
+          {charts.map((realChart) => {
+            const simChart = simulatedCharts.find((c) => c.question_id === realChart.question_id);
+            return (
+              <div key={realChart.question_id} className="grid grid-cols-2 gap-5 border border-surface-200 rounded-xl p-4 bg-surface-50 shadow-sm">
+                <div className="space-y-3">
+                  <div className="inline-block px-2.5 py-1 text-xs font-semibold rounded-md border border-brand-200 bg-brand-50 text-brand-700">
+                    Real Data
+                  </div>
+                  <SurveyChart chart={realChart} />
+                </div>
+                <div className="space-y-3">
+                  <div className="inline-block px-2.5 py-1 text-xs font-semibold rounded-md border border-purple-200 bg-purple-50 text-purple-700">
+                    Simulated Data
+                  </div>
+                  {simChart ? (
+                    <SurveyChart chart={simChart} />
+                  ) : (
+                    <div className="h-[260px] flex items-center justify-center border border-dashed border-surface-300 rounded-xl bg-white">
+                      <span className="text-surface-400 text-sm">No data available</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-5">
