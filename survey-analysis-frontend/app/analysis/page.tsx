@@ -146,7 +146,6 @@ export default function AnalysisPage() {
           <div className={activeTab === "analytics" ? "" : "hidden"}><AnalyticsTab /></div>
           <div className={activeTab === "charts" ? "" : "hidden"}><ChartsTab /></div>
           <div className={activeTab === "simulation" ? "" : "hidden"}><SimulationTab /></div>
-          {/* <div className={activeTab === "chat" ? "" : "hidden"}><ChatTab /></div> */}
         </div>
       </div>
 
