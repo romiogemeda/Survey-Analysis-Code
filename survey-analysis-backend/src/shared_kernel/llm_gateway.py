@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class LLMRequest(BaseModel):
     system_prompt: str
     user_prompt: str
+    messages: list[dict] | None = None
     model: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
@@ -42,10 +43,10 @@ class LLMGateway:
         temperature = request.temperature or self._settings.temperature
         max_tokens = request.max_tokens or self._settings.max_tokens
 
-        messages = [
-            {"role": "system", "content": request.system_prompt},
-            {"role": "user", "content": request.user_prompt},
-        ]
+        messages = [{"role": "system", "content": request.system_prompt}]
+        if request.messages:
+            messages.extend(request.messages)
+        messages.append({"role": "user", "content": request.user_prompt})
 
         # Try primary model
         try:
