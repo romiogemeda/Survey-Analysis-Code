@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 
 // Tab components
 import OverviewTab from "@/components/tabs/OverviewTab";
-import UploadTab from "@/components/tabs/UploadTab";
 import ResponsesTab from "@/components/tabs/ResponsesTab";
 import QualityTab from "@/components/tabs/QualityTab";
 import AnalyticsTab from "@/components/tabs/AnalyticsTab";
@@ -17,7 +16,6 @@ import ChatTab from "@/components/tabs/ChatTab";
 
 const TABS: { id: AnalysisTab; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
-  { id: "upload", label: "Upload", icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" },
   { id: "responses", label: "Responses", icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
   { id: "quality", label: "Quality", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
   { id: "analytics", label: "Analytics", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
@@ -44,6 +42,13 @@ export default function AnalysisPage() {
   useEffect(() => {
     ingestion.listSchemas().then(setSurveys).catch(() => {});
   }, []);
+
+  // Redirect stale ?tab=upload links to overview (upload is now inline in OverviewTab)
+  useEffect(() => {
+    if ((activeTab as string) === "upload") {
+      setActiveTab("overview");
+    }
+  }, [activeTab, setActiveTab]);
 
   // Load shared data when active survey changes
   useEffect(() => {
@@ -145,7 +150,6 @@ export default function AnalysisPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-[1400px] mx-auto">
           <div className={activeTab === "overview" ? "" : "hidden"}><OverviewTab /></div>
-          <div className={activeTab === "upload" ? "" : "hidden"}><UploadTab /></div>
           <div className={activeTab === "responses" ? "" : "hidden"}><ResponsesTab /></div>
           <div className={activeTab === "quality" ? "" : "hidden"}><QualityTab /></div>
           <div className={activeTab === "analytics" ? "" : "hidden"}><AnalyticsTab /></div>
