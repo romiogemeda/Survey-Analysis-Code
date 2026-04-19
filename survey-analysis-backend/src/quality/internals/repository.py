@@ -15,6 +15,22 @@ class QualityRepository:
         self._session = session
 
     async def save_score(self, submission_id: UUID, scores: dict) -> QualityScoreModel:
+        # Upsert: update the existing row if already scored, insert otherwise.
+        # Prevents IntegrityError from the unique constraint on submission_id
+        # when the batch is run more than once.
+        stmt = select(QualityScoreModel).where(QualityScoreModel.submission_id == submission_id)
+        result = await self._session.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            existing.grade = scores["grade"]
+            existing.speed_score = scores["speed_score"]
+            existing.variance_score = scores["variance_score"]
+            existing.gibberish_score = scores["gibberish_score"]
+            existing.composite_score = scores["composite_score"]
+            await self._session.flush()
+            return existing
+
         model = QualityScoreModel(
             submission_id=submission_id,
             grade=scores["grade"],

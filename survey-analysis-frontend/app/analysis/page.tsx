@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 // Tab components
 import OverviewTab from "@/components/tabs/OverviewTab";
 import ResponsesTab from "@/components/tabs/ResponsesTab";
-import QualityTab from "@/components/tabs/QualityTab";
 import AnalyticsTab from "@/components/tabs/AnalyticsTab";
 import ChartsTab from "@/components/tabs/ChartsTab";
 import SimulationTab from "@/components/tabs/SimulationTab";
@@ -17,7 +16,6 @@ import ChatTab from "@/components/tabs/ChatTab";
 const TABS: { id: AnalysisTab; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
   { id: "responses", label: "Responses", icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
-  { id: "quality", label: "Quality", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
   { id: "analytics", label: "Analytics", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
   { id: "charts", label: "Charts", icon: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" },
   { id: "simulation", label: "Simulation", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
@@ -30,8 +28,6 @@ export default function AnalysisPage() {
     setActiveSurvey,
     activeTab,
     setActiveTab,
-    qualityFilterEnabled,
-    toggleQualityFilter,
     setSubmissions,
     setQualityScores,
     surveys,
@@ -43,11 +39,10 @@ export default function AnalysisPage() {
     ingestion.listSchemas().then(setSurveys).catch(() => {});
   }, []);
 
-  // Redirect stale ?tab=upload links to overview (upload is now inline in OverviewTab)
+  // Redirect stale tab links to their new homes
   useEffect(() => {
-    if ((activeTab as string) === "upload") {
-      setActiveTab("overview");
-    }
+    if ((activeTab as string) === "upload") setActiveTab("overview");
+    if ((activeTab as string) === "quality") setActiveTab("responses");
   }, [activeTab, setActiveTab]);
 
   // Load shared data when active survey changes
@@ -105,12 +100,6 @@ export default function AnalysisPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <button onClick={toggleQualityFilter} className="flex items-center gap-2 text-sm">
-            <span className="text-surface-500 text-xs font-medium">Quality Filter</span>
-            <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${qualityFilterEnabled ? "bg-brand-600" : "bg-surface-300"}`}>
-              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${qualityFilterEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
-            </div>
-          </button>
           <button
             onClick={() => ingestion.listSchemas().then(setSurveys).catch(() => {})}
             className="btn-ghost p-2"
@@ -151,7 +140,6 @@ export default function AnalysisPage() {
         <div className="p-6 max-w-[1400px] mx-auto">
           <div className={activeTab === "overview" ? "" : "hidden"}><OverviewTab /></div>
           <div className={activeTab === "responses" ? "" : "hidden"}><ResponsesTab /></div>
-          <div className={activeTab === "quality" ? "" : "hidden"}><QualityTab /></div>
           <div className={activeTab === "analytics" ? "" : "hidden"}><AnalyticsTab /></div>
           <div className={activeTab === "charts" ? "" : "hidden"}><ChartsTab /></div>
           <div className={activeTab === "simulation" ? "" : "hidden"}><SimulationTab /></div>
