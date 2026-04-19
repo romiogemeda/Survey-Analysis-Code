@@ -88,7 +88,11 @@ Example output:
   );
 }
 
-Output ONLY the function expression starting with ({ data }) =>. No other text."""
+Output ONLY the function expression starting with ({ data }) =>. No other text.
+
+If prior conversation context is provided and the user is asking for a modification
+to a previous chart (e.g., 'change colors to green', 'make it a pie chart instead',
+'add a legend'), use the conversation to understand what needs to change."""
 
 
 TEXT_ANSWER_SYSTEM_PROMPT = """You are a survey data analyst assistant.
@@ -173,6 +177,7 @@ class QueryTranslator:
         user_query: str,
         chart_data: list[dict],
         chart_hint: str = "bar",
+        history: list[dict] | None = None,
     ) -> str | None:
         """
         Generate a React component string for rendering a chart.
@@ -192,6 +197,7 @@ class QueryTranslator:
                     f"Do not use import/require/fetch/eval/window/document. "
                     f"Output ONLY the arrow function starting with ({{ data }}) =>."
                 ),
+                messages=history,
             ))
 
             code = response.content.strip()

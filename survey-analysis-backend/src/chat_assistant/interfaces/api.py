@@ -214,7 +214,7 @@ class ChatAssistantService:
             )
 
         chart_code = await self._translator.generate_chart_code(
-            query, chart_data, chart_hint
+            query, chart_data, chart_hint, history=history
         )
 
         if chart_code:
@@ -249,7 +249,7 @@ class ChatAssistantService:
 
         if chart_data:
             chart_code = await self._translator.generate_chart_code(
-                query, chart_data, chart_hint
+                query, chart_data, chart_hint, history=history
             )
             if chart_code:
                 return MessageResponse(
