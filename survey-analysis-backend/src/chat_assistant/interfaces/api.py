@@ -117,6 +117,22 @@ class ChatAssistantService:
             for m in messages
         ]
 
+    async def _get_recent_history(self, session_id: UUID, limit: int = 10) -> list[dict]:
+        messages = await self._repo.get_messages(session_id)
+        if not messages:
+            return []
+            
+        # Exclude the most recent message and limit to `limit` prior messages
+        prior_messages = messages[:-1][-limit:] if len(messages) > 1 else []
+        
+        return [
+            {
+                "role": "user" if m.role == ChatRole.USER else "assistant",
+                "content": m.content
+            }
+            for m in prior_messages
+        ]
+
     # ── Data Query Pipeline ───────────────────────
 
     async def _handle_data_query(
