@@ -173,22 +173,22 @@ class ChatAssistantService:
         # Step 3: Route to pipeline
         if intent == "text_answer":
             return await self._text_answer_pipeline(
-                query, query_spec, query_result
+                query, query_spec, query_result, history
             )
         elif intent == "chart":
             return await self._chart_pipeline(
-                query, query_spec, query_result, executor, chart_hint
+                query, query_spec, query_result, executor, chart_hint, history
             )
         else:  # "both"
             return await self._both_pipeline(
-                query, query_spec, query_result, executor, chart_hint
+                query, query_spec, query_result, executor, chart_hint, history
             )
 
     async def _text_answer_pipeline(
-        self, query: str, query_spec: dict, query_result: dict
+        self, query: str, query_spec: dict, query_result: dict, history: list[dict]
     ) -> MessageResponse:
         """Generate a text-only answer."""
-        text = await self._translator.generate_text_answer(query, query_result)
+        text = await self._translator.generate_text_answer(query, query_result, history=history)
         return MessageResponse(
             role=ChatRole.ASSISTANT,
             content=text,
@@ -198,14 +198,14 @@ class ChatAssistantService:
 
     async def _chart_pipeline(
         self, query: str, query_spec: dict, query_result: dict,
-        executor: QueryExecutor, chart_hint: str,
+        executor: QueryExecutor, chart_hint: str, history: list[dict]
     ) -> MessageResponse:
         """Generate a chart with brief text explanation."""
         chart_data = executor.prepare_chart_data(query_result)
 
         if not chart_data:
             # Fallback to text if no chartable data
-            text = await self._translator.generate_text_answer(query, query_result)
+            text = await self._translator.generate_text_answer(query, query_result, history=history)
             return MessageResponse(
                 role=ChatRole.ASSISTANT,
                 content=text + "\n\n(No chartable data was produced for this query.)",
@@ -219,7 +219,7 @@ class ChatAssistantService:
 
         if chart_code:
             # Generate a brief text to accompany the chart
-            text = await self._translator.generate_text_answer(query, query_result)
+            text = await self._translator.generate_text_answer(query, query_result, history=history)
             return MessageResponse(
                 role=ChatRole.ASSISTANT,
                 content=text,
@@ -231,7 +231,7 @@ class ChatAssistantService:
             )
         else:
             # Chart generation failed — fall back to text
-            text = await self._translator.generate_text_answer(query, query_result)
+            text = await self._translator.generate_text_answer(query, query_result, history=history)
             return MessageResponse(
                 role=ChatRole.ASSISTANT,
                 content=text + "\n\n(I tried to generate a chart but encountered an error.)",
@@ -241,10 +241,10 @@ class ChatAssistantService:
 
     async def _both_pipeline(
         self, query: str, query_spec: dict, query_result: dict,
-        executor: QueryExecutor, chart_hint: str,
+        executor: QueryExecutor, chart_hint: str, history: list[dict]
     ) -> MessageResponse:
         """Generate text + chart together."""
-        text = await self._translator.generate_text_answer(query, query_result)
+        text = await self._translator.generate_text_answer(query, query_result, history=history)
         chart_data = executor.prepare_chart_data(query_result)
 
         if chart_data:

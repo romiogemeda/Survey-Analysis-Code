@@ -94,7 +94,10 @@ Output ONLY the function expression starting with ({ data }) =>. No other text."
 TEXT_ANSWER_SYSTEM_PROMPT = """You are a survey data analyst assistant.
 Given the user's question and the computed query results, provide a clear, helpful answer.
 Be specific with numbers. If the data shows a distribution or grouped result, mention the key findings.
-Keep it concise — 2-4 sentences. Do not use markdown formatting."""
+Keep it concise — 2-4 sentences. Do not use markdown formatting.
+
+If prior conversation context is provided, your answer should build on it naturally —
+reference earlier findings when relevant, avoid repeating information already discussed."""
 
 
 # ── Dangerous code patterns ──────────────────────
@@ -149,7 +152,7 @@ class QueryTranslator:
             }
 
     async def generate_text_answer(
-        self, user_query: str, query_result: dict
+        self, user_query: str, query_result: dict, history: list[dict] | None = None
     ) -> str:
         """Generate a natural language answer from query results."""
         context = (
@@ -161,6 +164,7 @@ class QueryTranslator:
         response = await llm_gateway.complete(LLMRequest(
             system_prompt=TEXT_ANSWER_SYSTEM_PROMPT,
             user_prompt=context,
+            messages=history,
         ))
         return response.content.strip()
 
