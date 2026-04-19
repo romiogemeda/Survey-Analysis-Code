@@ -125,13 +125,27 @@ class ChatAssistantService:
         # Exclude the most recent message and limit to `limit` prior messages
         prior_messages = messages[:-1][-limit:] if len(messages) > 1 else []
         
-        return [
-            {
+        history = []
+        total_chars = 0
+        MAX_CHARS = 8000
+        MSG_LIMIT = 2000
+        
+        # Iterate from most recent backward, accumulating up to budget
+        for m in reversed(prior_messages):
+            content = m.content or ""
+            if len(content) > MSG_LIMIT:
+                content = content[:MSG_LIMIT] + "... [truncated]"
+                
+            if total_chars + len(content) > MAX_CHARS:
+                break
+                
+            history.insert(0, {
                 "role": "user" if m.role == ChatRole.USER else "assistant",
-                "content": m.content
-            }
-            for m in prior_messages
-        ]
+                "content": content
+            })
+            total_chars += len(content)
+            
+        return history
 
     # ── Data Query Pipeline ───────────────────────
 
