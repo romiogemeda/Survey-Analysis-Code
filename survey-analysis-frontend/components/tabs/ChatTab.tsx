@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
-import { chat, simulation } from "@/lib/api";
-import type { ChatMessage, ChatSession, Persona } from "@/types";
+import { chat } from "@/lib/api";
+import type { ChatMessage, ChatSession } from "@/types";
 import { cn } from "@/lib/utils";
 import DynamicChart from "./DynamicChart";
 
@@ -13,14 +13,7 @@ export default function ChatTab() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [mode, setMode] = useState<"DATA_QUERY" | "PERSONA_INTERVIEW">("DATA_QUERY");
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [selectedPersona, setSelectedPersona] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    simulation.listPersonas().then(setPersonas).catch(() => {});
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,8 +27,7 @@ export default function ChatTab() {
     try {
       const s = await chat.startSession({
         survey_schema_id: activeSurvey.id,
-        session_type: mode,
-        persona_id: mode === "PERSONA_INTERVIEW" ? selectedPersona || null : null,
+        session_type: "DATA_QUERY",
       });
       setSession(s);
       setMessages([]);
@@ -82,7 +74,7 @@ export default function ChatTab() {
       {/* Header */}
       <div className="flex items-center justify-between pb-4">
         <div>
-          <h1 className="text-2xl font-display font-bold">Chat Assistant</h1>
+          <h1 className="text-2xl font-display font-bold">Data Analysis Assistant</h1>
           <p className="text-surface-500 text-sm mt-1">
             Ask questions about your survey data — get answers with interactive charts
           </p>
@@ -96,58 +88,6 @@ export default function ChatTab() {
             <h3 className="text-sm font-display font-semibold text-surface-700">
               Session
             </h3>
-
-            {/* Mode Selection */}
-            <div>
-              <label className="text-xs font-medium text-surface-500 mb-1.5 block">
-                Mode
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  onClick={() => setMode("DATA_QUERY")}
-                  className={cn(
-                    "px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                    mode === "DATA_QUERY"
-                      ? "bg-brand-50 text-brand-700 border border-brand-200"
-                      : "bg-surface-50 text-surface-600 border border-surface-200 hover:bg-surface-100"
-                  )}
-                >
-                  Data Query
-                </button>
-                <button
-                  onClick={() => setMode("PERSONA_INTERVIEW")}
-                  className={cn(
-                    "px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                    mode === "PERSONA_INTERVIEW"
-                      ? "bg-purple-50 text-purple-700 border border-purple-200"
-                      : "bg-surface-50 text-surface-600 border border-surface-200 hover:bg-surface-100"
-                  )}
-                >
-                  Persona
-                </button>
-              </div>
-            </div>
-
-            {/* Persona Selector */}
-            {mode === "PERSONA_INTERVIEW" && (
-              <div>
-                <label className="text-xs font-medium text-surface-500 mb-1.5 block">
-                  Select Persona
-                </label>
-                <select
-                  className="input text-xs"
-                  value={selectedPersona}
-                  onChange={(e) => setSelectedPersona(e.target.value)}
-                >
-                  <option value="">Choose a persona...</option>
-                  {personas.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             <button
               onClick={startSession}
