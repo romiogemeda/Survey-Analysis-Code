@@ -644,7 +644,7 @@ export default function OverviewTab() {
       {/* Quick Actions */}
       <div className="card-padded">
         <h3 className="section-heading mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => setActiveTab("analytics")}
             className="card p-4 hover:shadow-elevated transition-shadow group cursor-pointer text-left"
@@ -697,7 +697,7 @@ export default function OverviewTab() {
               </div>
             </div>
           </button>
-          <button
+          {/* <button
             onClick={() => setActiveTab("chat")}
             className="card p-4 hover:shadow-elevated transition-shadow group cursor-pointer text-left"
           >
@@ -724,7 +724,7 @@ export default function OverviewTab() {
                 <p className="text-xs text-surface-500">Natural language queries</p>
               </div>
             </div>
-          </button>
+          </button> */}
         </div>
       </div>
 
