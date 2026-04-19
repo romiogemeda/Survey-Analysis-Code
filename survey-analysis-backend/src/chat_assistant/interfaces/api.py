@@ -88,7 +88,7 @@ class ChatAssistantService:
             )
         else:
             response = await self._handle_persona_interview(
-                content, session.active_persona_id,
+                session_id, content, session.active_persona_id,
             )
 
         # Save assistant response
@@ -300,12 +300,14 @@ class ChatAssistantService:
                     })
         return fields
 
-    # ── Persona Interview (unchanged) ─────────────
+    # ── Persona Interview ─────────────────────────
 
     async def _handle_persona_interview(
-        self, message: str, persona_id: UUID | None
+        self, session_id: UUID, message: str, persona_id: UUID | None
     ) -> MessageResponse:
         """FR-23: Chat with a simulated persona."""
+        history = await self._get_recent_history(session_id, limit=10)
+        
         persona_context = "a typical survey respondent"
         if persona_id:
             from src.simulation.interfaces.api import SimulationService
@@ -321,6 +323,7 @@ class ChatAssistantService:
                 "Be authentic to the persona's personality and demographics."
             ),
             user_prompt=message,
+            messages=history,
         ))
         return MessageResponse(role=ChatRole.ASSISTANT, content=response.content)
 
