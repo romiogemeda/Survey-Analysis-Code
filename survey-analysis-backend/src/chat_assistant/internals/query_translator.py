@@ -41,6 +41,9 @@ Output STRICTLY as JSON:
     },
     "chart_hint": "<suggested chart type if intent is chart or both, e.g. bar, pie, scatter, line, radar, area, histogram, donut, box, treemap, funnel, stacked_bar>"
 }
+
+If prior conversation context is provided, use it to interpret ambiguous references
+(e.g., 'show it as a pie chart' refers to the previous chart or topic discussed).
 Return ONLY valid JSON. No markdown, no explanation."""
 
 
@@ -112,6 +115,7 @@ class QueryTranslator:
         user_query: str,
         fields: list[dict],
         active_filters: dict | None = None,
+        history: list[dict] | None = None,
     ) -> dict:
         """Classify intent and generate a query spec."""
         context = (
@@ -122,6 +126,7 @@ class QueryTranslator:
         response = await llm_gateway.complete(LLMRequest(
             system_prompt=INTENT_SYSTEM_PROMPT,
             user_prompt=context,
+            messages=history,
         ))
         try:
             cleaned = response.content.strip()

@@ -84,7 +84,7 @@ class ChatAssistantService:
         # Route to handler
         if session.session_type == ChatSessionType.DATA_QUERY:
             response = await self._handle_data_query(
-                content, session.survey_schema_id, session.active_filters_snapshot,
+                session_id, content, session.survey_schema_id, session.active_filters_snapshot,
             )
         else:
             response = await self._handle_persona_interview(
@@ -136,7 +136,7 @@ class ChatAssistantService:
     # ── Data Query Pipeline ───────────────────────
 
     async def _handle_data_query(
-        self, query: str, survey_schema_id: UUID, active_filters: dict
+        self, session_id: UUID, query: str, survey_schema_id: UUID, active_filters: dict
     ) -> MessageResponse:
         """FR-20/21: Intent routing → query execution → text/chart generation."""
         from src.ingestion.interfaces.api import IngestionService
@@ -155,9 +155,12 @@ class ChatAssistantService:
         # Build field context for the LLM
         fields = self._build_field_context(schema, raw_data)
 
+        # Fetch history before classification
+        history = await self._get_recent_history(session_id, limit=10)
+
         # Step 1: Classify intent + get query spec
         classification = await self._translator.classify_intent(
-            query, fields, active_filters
+            query, fields, active_filters, history=history
         )
         intent = classification.get("intent", "text_answer")
         query_spec = classification.get("query_spec", {"operation": "count", "filters": []})
