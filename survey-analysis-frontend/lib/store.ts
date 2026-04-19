@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { SurveySchema, Submission, QualityScore } from "@/types";
+import type { SurveySchema, Submission, QualityScore, ChatMessage } from "@/types";
 
 export type AnalysisTab =
   | "overview"
@@ -34,12 +34,28 @@ interface AppState {
   toasts: Array<{ id: string; message: string; type: "success" | "error" | "info" }>;
   addToast: (message: string, type?: "success" | "error" | "info") => void;
   removeToast: (id: string) => void;
+
+  // Chat Panel State
+  chatPanelOpen: boolean;
+  setChatPanelOpen: (open: boolean) => void;
+  chatSessionId: string | null;
+  setChatSessionId: (id: string | null) => void;
+  chatMessages: ChatMessage[];
+  setChatMessages: (messages: ChatMessage[]) => void;
+  appendChatMessage: (message: ChatMessage) => void;
+  resetChatSession: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   activeSurvey: null,
   setActiveSurvey: (survey) =>
-    set({ activeSurvey: survey, submissions: [], qualityScores: new Map() }),
+    set({ 
+      activeSurvey: survey, 
+      submissions: [], 
+      qualityScores: new Map(),
+      chatSessionId: null,
+      chatMessages: []
+    }),
 
   activeTab: "overview",
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -69,4 +85,18 @@ export const useAppStore = create<AppState>((set) => ({
   },
   removeToast: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+
+  chatPanelOpen: false,
+  setChatPanelOpen: (open) => set({ chatPanelOpen: open }),
+  
+  chatSessionId: null,
+  setChatSessionId: (id) => set({ chatSessionId: id }),
+  
+  chatMessages: [],
+  setChatMessages: (messages) => set({ chatMessages: messages }),
+  
+  appendChatMessage: (message) =>
+    set((s) => ({ chatMessages: [...s.chatMessages, message] })),
+    
+  resetChatSession: () => set({ chatSessionId: null, chatMessages: [] }),
 }));
