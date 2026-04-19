@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAppStore } from "@/lib/store";
-import { simulation, ingestion } from "@/lib/api";
+import { simulation, ingestion, chat } from "@/lib/api";
 import { gradeBadgeClass } from "@/lib/utils";
-import type { Persona, SimulatedResponse } from "@/types";
+import type { Persona, SimulatedResponse, ChatSession, ChatMessage } from "@/types";
 
 export default function SimulationTab() {
   const { activeSurvey, addToast, setSubmissions } = useAppStore();
@@ -24,6 +24,18 @@ export default function SimulationTab() {
   const [batchRunning, setBatchRunning] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [promoting, setPromoting] = useState(false);
+
+  // ── Persona Interview State ───────────────────────
+  const [interviewSession, setInterviewSession] = useState<ChatSession | null>(null);
+  const [interviewMessages, setInterviewMessages] = useState<ChatMessage[]>([]);
+  const [interviewInput, setInterviewInput] = useState("");
+  const [interviewSending, setInterviewSending] = useState(false);
+  const [selectedInterviewPersona, setSelectedInterviewPersona] = useState<string>("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [interviewMessages]);
 
   useEffect(() => {
     simulation.listPersonas().then(setPersonas).catch(() => {});
@@ -175,7 +187,59 @@ export default function SimulationTab() {
     setPromoting(false);
   };
 
+  // ── Persona Interview ───────────────────────────
+  const handleStartInterview = async () => {
+    if (!activeSurvey) return;
+    if (!selectedInterviewPersona) {
+      addToast("Select a persona to interview", "error");
+      return;
+    }
+    try {
+      const s = await chat.startSession({
+        survey_schema_id: activeSurvey.id,
+        session_type: "PERSONA_INTERVIEW",
+        persona_id: selectedInterviewPersona,
+      });
+      setInterviewSession(s);
+      setInterviewMessages([]);
+      addToast("Interview session started", "success");
+    } catch {
+      addToast("Failed to start interview", "error");
+    }
+  };
 
+  const handleSendInterviewMessage = async () => {
+    if (!interviewSession || !interviewInput.trim()) return;
+    const userMsg: ChatMessage = { role: "USER", content: interviewInput };
+    setInterviewMessages((prev) => [...prev, userMsg]);
+    const currentInput = interviewInput;
+    setInterviewInput("");
+    setInterviewSending(true);
+
+    try {
+      const response = await chat.sendMessage({
+        session_id: interviewSession.session_id,
+        content: currentInput,
+      });
+      setInterviewMessages((prev) => [...prev, response]);
+    } catch {
+      setInterviewMessages((prev) => [
+        ...prev,
+        {
+          role: "ASSISTANT",
+          content: "Sorry, I encountered an error. Make sure an LLM API key is configured.",
+        },
+      ]);
+    }
+    setInterviewSending(false);
+  };
+
+  const handleInterviewKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendInterviewMessage();
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -481,6 +545,124 @@ export default function SimulationTab() {
           </div>
         </div>
       )}
+
+      {/* ── Interview a Persona ─────────────────────── */}
+      <div className="card-padded space-y-4">
+        <h3 className="section-heading">Interview a Persona</h3>
+        <p className="text-xs text-surface-500">
+          Have a conversational interview with a synthetic persona to deeply understand their viewpoint.
+        </p>
+
+        {!interviewSession ? (
+          <div className="flex gap-2 items-center">
+            <select
+              className="input text-sm flex-1 max-w-sm"
+              value={selectedInterviewPersona}
+              onChange={(e) => setSelectedInterviewPersona(e.target.value)}
+            >
+              <option value="">Choose a persona...</option>
+              {personas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.type ? `(${p.type})` : ""}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleStartInterview}
+              disabled={!selectedInterviewPersona || !activeSurvey}
+              className="btn-primary"
+            >
+              Start Interview
+            </button>
+          </div>
+        ) : (
+          <div className="border border-surface-200 rounded-xl overflow-hidden flex flex-col h-[500px]">
+            {/* Banner */}
+            <div className="bg-surface-50 border-b border-surface-200 p-3 flex justify-between items-center">
+              <div>
+                <h4 className="font-semibold text-surface-800 text-sm">
+                  {personas.find((p) => p.id === interviewSession.persona_id)?.name || "Persona"}
+                </h4>
+                <span className="badge-info text-[10px] mt-0.5">
+                  {personas.find((p) => p.id === interviewSession.persona_id)?.type || "PREDEFINED"}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setInterviewSession(null);
+                  setInterviewMessages([]);
+                }}
+                className="btn-ghost text-xs text-surface-500"
+              >
+                End Interview
+              </button>
+            </div>
+
+            {/* Chat Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+              {interviewMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-surface-400 text-sm">
+                  Say hi to begin the interview.
+                </div>
+              ) : (
+                interviewMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex animate-slide-up ${
+                      msg.role === "USER" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`rounded-2xl px-4 py-3 text-sm ${
+                        msg.role === "USER"
+                          ? "max-w-[75%] bg-brand-600 text-white rounded-br-[4px]"
+                          : "max-w-[85%] bg-surface-100 text-surface-800 rounded-bl-[4px]"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {interviewSending && (
+                <div className="flex justify-start">
+                  <div className="bg-surface-100 rounded-2xl rounded-bl-[4px] px-4 py-3">
+                    <div className="flex gap-1.5 h-5 items-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-surface-400 animate-pulse" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-surface-400 animate-pulse stagger-1" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-surface-400 animate-pulse stagger-2" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-3 border-t border-surface-200 bg-white">
+              <div className="flex gap-2">
+                <input
+                  className="input flex-1"
+                  placeholder="Ask a question..."
+                  value={interviewInput}
+                  onChange={(e) => setInterviewInput(e.target.value)}
+                  onKeyDown={handleInterviewKeyDown}
+                  disabled={interviewSending}
+                />
+                <button
+                  onClick={handleSendInterviewMessage}
+                  disabled={!interviewInput.trim() || interviewSending}
+                  className="btn-primary px-4"
+                >
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
