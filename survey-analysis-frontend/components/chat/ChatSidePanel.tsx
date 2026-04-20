@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Send, PlusCircle } from "lucide-react";
+import { X, Send, PlusCircle, Bookmark } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { chat } from "@/lib/api";
+import { chat, pins } from "@/lib/api";
 import type { ChatMessage } from "@/types";
 import { cn } from "@/lib/utils";
 import DynamicChart from "../tabs/DynamicChart";
@@ -24,8 +24,43 @@ export function ChatSidePanel() {
 
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [pinnedMsgIndices, setPinnedMsgIndices] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handlePin = async (msgIndex: number, currentMsg: ChatMessage) => {
+    if (!activeSurvey) return;
+    if (pinnedMsgIndices.has(msgIndex)) {
+      addToast("Manage pins from the Analysis tab", "info");
+      return;
+    }
+
+    // Find the closest previous USER message
+    let sourceQuestion = "Unknown question";
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (chatMessages[i].role === "USER") {
+        sourceQuestion = chatMessages[i].content;
+        break;
+      }
+    }
+
+    try {
+      await pins.create({
+        survey_schema_id: activeSurvey.id,
+        source_question: sourceQuestion,
+        content: currentMsg.content,
+        chart_code: currentMsg.chart_code || null,
+        chart_data: currentMsg.chart_data || null,
+        chart_type: currentMsg.chart_type || null,
+      });
+      const nextSet = new Set(pinnedMsgIndices);
+      nextSet.add(msgIndex);
+      setPinnedMsgIndices(nextSet);
+      addToast("Pinned to Analysis", "success");
+    } catch {
+      addToast("Failed to pin insight", "error");
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -164,12 +199,29 @@ export function ChatSidePanel() {
             >
               <div
                 className={cn(
-                  "rounded-2xl px-4 py-3 text-sm shadow-sm",
+                  "relative group rounded-2xl px-4 py-3 text-sm shadow-sm",
                   msg.role === "USER"
                     ? "max-w-[85%] bg-brand-600 text-white rounded-br-sm"
-                    : "max-w-[90%] bg-surface-50 border border-surface-200 text-surface-800 rounded-bl-sm"
+                    : "max-w-[90%] bg-surface-50 border border-surface-200 text-surface-800 rounded-bl-sm pr-10"
                 )}
               >
+                {msg.role === "ASSISTANT" && (
+                  <button
+                    onClick={() => handlePin(i, msg)}
+                    className={cn(
+                      "absolute top-2 right-2 p-1.5 rounded-md transition-all",
+                      pinnedMsgIndices.has(i)
+                        ? "text-brand-600 bg-brand-50 opacity-100"
+                        : "text-surface-400 opacity-0 group-hover:opacity-100 hover:bg-surface-200 hover:text-surface-700"
+                    )}
+                    title={pinnedMsgIndices.has(i) ? "Unpin (Manage in Analysis tab)" : "Pin to Analysis"}
+                  >
+                    <Bookmark
+                      size={16}
+                      className={cn(pinnedMsgIndices.has(i) && "fill-current")}
+                    />
+                  </button>
+                )}
                 <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
 
                 {msg.role === "ASSISTANT" && msg.chart_code && !!msg.chart_data && (
