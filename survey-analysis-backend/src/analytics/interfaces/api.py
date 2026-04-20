@@ -6,6 +6,8 @@ FR-06 (Correlation), FR-07 (Insights), FR-08 (Executive Summary).
 import logging
 from itertools import combinations
 from uuid import UUID
+from datetime import datetime
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -316,3 +318,73 @@ async def get_summary(
     if not summary:
         raise HTTPException(404, "No summary found. Generate one first via POST.")
     return summary
+
+
+# ── Pinned Insights ───────────────────────────────
+
+class CreatePinRequest(BaseModel):
+    survey_schema_id: UUID
+    source_question: str
+    content: str
+    chart_code: str | None = None
+    chart_data: list | None = None
+    chart_type: str | None = None
+    user_note: str | None = None
+
+class PinResponse(BaseModel):
+    id: UUID
+    survey_schema_id: UUID
+    source_question: str
+    content: str
+    chart_code: str | None
+    chart_data: list | None
+    chart_type: str | None
+    user_note: str | None
+    pinned_at: datetime
+
+    model_config = {"from_attributes": True}
+
+class UpdatePinNoteRequest(BaseModel):
+    user_note: str | None
+
+@router.post("/pins", response_model=PinResponse)
+async def create_pin(
+    request: CreatePinRequest, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    return await repo.create_pin(
+        survey_schema_id=request.survey_schema_id,
+        source_question=request.source_question,
+        content=request.content,
+        chart_code=request.chart_code,
+        chart_data=request.chart_data,
+        chart_type=request.chart_type,
+        user_note=request.user_note,
+    )
+
+@router.get("/pins/{survey_schema_id}", response_model=list[PinResponse])
+async def get_pins(
+    survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    return await repo.get_pins(survey_schema_id)
+
+@router.delete("/pins/{pin_id}", status_code=204)
+async def delete_pin(
+    pin_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    deleted = await repo.delete_pin(pin_id)
+    if not deleted:
+        raise HTTPException(404, "Pin not found")
+    return None
+
+@router.patch("/pins/{pin_id}/note", response_model=PinResponse)
+async def update_pin_note(
+    pin_id: UUID, request: UpdatePinNoteRequest, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    updated = await repo.update_pin_note(pin_id, request.user_note)
+    if not updated:
+        raise HTTPException(404, "Pin not found")
+    return updated
