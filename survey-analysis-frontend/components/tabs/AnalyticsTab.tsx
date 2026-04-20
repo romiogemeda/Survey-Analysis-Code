@@ -5,6 +5,8 @@ import { useAppStore } from "@/lib/store";
 import { analytics } from "@/lib/api";
 import type { AnalysisResult, AnalysisFinding } from "@/types";
 import { cn, formatPValue } from "@/lib/utils";
+import DescriptiveStatsSection from "@/components/analysis/DescriptiveStatsSection";
+import QualitySummarySection from "@/components/analysis/QualitySummarySection";
 
 // ── Loading Messages ────────────────────────────
 
@@ -262,6 +264,12 @@ export default function AnalyticsTab() {
           {result.summary}
         </div>
       </div>
+
+      {/* Descriptive Stats */}
+      <DescriptiveStatsSection stats={result.descriptive_stats} />
+
+      {/* Quality Summary */}
+      <QualitySummarySection summary={result.quality_summary} />
 
       {/* Findings */}
       {result.findings.length > 0 ? (
