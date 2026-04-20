@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { analytics, pins } from "@/lib/api";
 import type { AnalysisResult, AnalysisFinding } from "@/types";
@@ -151,6 +151,20 @@ export default function AnalyticsTab() {
       addToast('Failed to remove insight', 'error');
     }
   };
+
+  useEffect(() => {
+    if (!activeSurvey || !result) return;
+    
+    pins.list(activeSurvey.id)
+      .then((freshPins) => {
+        setResult((prev) => prev && { ...prev, pinned_insights: freshPins });
+      })
+      .catch(() => {});
+    
+    // Intentionally omitting `result` from dependencies 
+    // so this only runs once per survey selection or mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSurvey?.id]);
 
   const handleAnalyze = async () => {
     if (!activeSurvey) {
