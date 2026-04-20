@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
-import { analytics } from "@/lib/api";
+import { analytics, pins } from "@/lib/api";
 import type { AnalysisResult, AnalysisFinding } from "@/types";
 import { cn, formatPValue } from "@/lib/utils";
 import DescriptiveStatsSection from "@/components/analysis/DescriptiveStatsSection";
 import QualitySummarySection from "@/components/analysis/QualitySummarySection";
+import { PinnedInsightsSection } from "@/components/analysis/PinnedInsightsSection";
 
 // ── Loading Messages ────────────────────────────
 
@@ -137,6 +138,19 @@ export default function AnalyticsTab() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [running, setRunning] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
+
+  const handleUnpin = async (pinId: string) => {
+    try {
+      await pins.delete(pinId);
+      setResult((prev) => prev && {
+        ...prev,
+        pinned_insights: prev.pinned_insights.filter((p) => p.id !== pinId),
+      });
+      addToast('Insight removed', 'success');
+    } catch {
+      addToast('Failed to remove insight', 'error');
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!activeSurvey) {
@@ -270,6 +284,9 @@ export default function AnalyticsTab() {
 
       {/* Quality Summary */}
       <QualitySummarySection summary={result.quality_summary} />
+
+      {/* Pinned Insights */}
+      <PinnedInsightsSection pins={result.pinned_insights} onUnpin={handleUnpin} />
 
       {/* Findings */}
       {result.findings.length > 0 ? (
