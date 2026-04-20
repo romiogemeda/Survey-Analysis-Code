@@ -136,6 +136,7 @@ function FindingCard({ finding, index }: { finding: AnalysisFinding; index: numb
 export default function AnalyticsTab() {
   const { activeSurvey, addToast } = useAppStore();
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [resultLoaded, setResultLoaded] = useState(false);
   const [running, setRunning] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
 
@@ -152,19 +153,25 @@ export default function AnalyticsTab() {
     }
   };
 
+  // Poll pins every 3s once analysis results exist.
+  // `resultLoaded` is in deps so the interval starts immediately after
+  // the first analysis completes — not just when the survey changes.
   useEffect(() => {
-    if (!activeSurvey || !result) return;
-    
-    pins.list(activeSurvey.id)
-      .then((freshPins) => {
-        setResult((prev) => prev && { ...prev, pinned_insights: freshPins });
-      })
-      .catch(() => {});
-    
-    // Intentionally omitting `result` from dependencies 
-    // so this only runs once per survey selection or mount.
+    if (!activeSurvey || !resultLoaded) return;
+
+    const fetchPins = () => {
+      pins.list(activeSurvey.id)
+        .then((freshPins) => {
+          setResult((prev) => prev && { ...prev, pinned_insights: freshPins });
+        })
+        .catch(() => {});
+    };
+
+    fetchPins(); // immediate
+    const intervalId = setInterval(fetchPins, 3000);
+    return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSurvey?.id]);
+  }, [activeSurvey?.id, resultLoaded]);
 
   const handleAnalyze = async () => {
     if (!activeSurvey) {
@@ -185,6 +192,7 @@ export default function AnalyticsTab() {
     try {
       const res = await analytics.analyze(activeSurvey.id);
       setResult(res);
+      setResultLoaded(true);
       addToast(
         `Analysis complete — ${res.stats.significant_findings} patterns found`,
         "success"

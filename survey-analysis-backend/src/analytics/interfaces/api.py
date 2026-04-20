@@ -387,7 +387,7 @@ async def get_pins(
     repo = AnalyticsRepository(session)
     return await repo.get_pins(survey_schema_id)
 
-@router.delete("/pins/{pin_id}", status_code=204)
+@router.delete("/pins/{pin_id}")
 async def delete_pin(
     pin_id: UUID, session: AsyncSession = Depends(get_db_session)
 ):
@@ -395,7 +395,7 @@ async def delete_pin(
     deleted = await repo.delete_pin(pin_id)
     if not deleted:
         raise HTTPException(404, "Pin not found")
-    return None
+    return {"deleted": True, "id": str(pin_id)}
 
 @router.patch("/pins/{pin_id}/note", response_model=PinResponse)
 async def update_pin_note(

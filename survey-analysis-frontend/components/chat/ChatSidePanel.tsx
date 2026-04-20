@@ -63,6 +63,10 @@ export function ChatSidePanel() {
   };
 
   useEffect(() => {
+    setPinnedMsgIndices(new Set());
+  }, [chatSessionId, activeSurvey?.id]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, sending]);
 
