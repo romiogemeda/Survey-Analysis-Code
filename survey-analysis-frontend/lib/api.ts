@@ -24,6 +24,8 @@ import type {
   UploadResult,
   RunBatchRequest,
   PromotionResult,
+  PinnedInsight,
+  CreatePinRequest,
 } from "@/types";
 
 const BASE = "/api/v1";
@@ -281,6 +283,31 @@ export const chat = {
     return request<Persona[]>(`${BASE}/chat/extract-personas`, {
       method: "POST",
       body: JSON.stringify({ survey_schema_id: schemaId }),
+    });
+  },
+};
+
+// ── Pinned Insights ──────────────────────────────
+
+export const pins = {
+  list(schemaId: string) {
+    return request<PinnedInsight[]>(`${BASE}/analytics/pins/${schemaId}`);
+  },
+  create(pin: CreatePinRequest) {
+    return request<PinnedInsight>(`${BASE}/analytics/pins`, {
+      method: "POST",
+      body: JSON.stringify(pin),
+    });
+  },
+  delete(pinId: string) {
+    return request<void>(`${BASE}/analytics/pins/${pinId}`, {
+      method: "DELETE",
+    });
+  },
+  updateNote(pinId: string, userNote: string | null) {
+    return request<PinnedInsight>(`${BASE}/analytics/pins/${pinId}/note`, {
+      method: "PATCH",
+      body: JSON.stringify({ user_note: userNote }),
     });
   },
 };

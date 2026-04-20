@@ -250,12 +250,35 @@ export interface QualitySummary {
   top_issues?: Array<{ issue: string; count: number }>;
 }
 
+export interface PinnedInsight {
+  id: string;
+  survey_schema_id?: string;
+  source_question: string;
+  content: string;
+  chart_code?: string | null;
+  chart_data?: Record<string, unknown>[] | null;
+  chart_type?: string | null;
+  user_note?: string | null;
+  pinned_at: string;
+}
+
+export interface CreatePinRequest {
+  survey_schema_id: string;
+  source_question: string;
+  content: string;
+  chart_code?: string | null;
+  chart_data?: Record<string, unknown>[] | null;
+  chart_type?: string | null;
+  user_note?: string | null;
+}
+
 export interface AnalysisResult {
   survey_schema_id: string;
   summary: string;
   findings: AnalysisFinding[];
   descriptive_stats: DescriptiveStat[];
   quality_summary: QualitySummary;
+  pinned_insights: PinnedInsight[];
   stats: {
     total_responses: number;
     pairs_analyzed: number;
