@@ -100,8 +100,6 @@ export interface SimulatedResponse {
   llm_model_used: string;
   quality_grade?: QualityGrade;
   quality_score?: number;
-  quality_grade?: "HIGH" | "MEDIUM" | "LOW";
-  quality_score?: number;
 }
 
 export interface BatchItem {
@@ -208,10 +206,56 @@ export interface AnalysisFinding {
   };
 }
 
+export interface DescriptiveStat {
+  question_id: string;
+  question_text: string;
+  data_type: string;
+  total_responses: number;
+  missing_count: number;
+  missing_rate: number;
+  distinct_count: number;
+  // Numeric types
+  mean?: number;
+  median?: number;
+  std_dev?: number;
+  min?: number;
+  max?: number;
+  // Categorical types
+  mode?: string;
+  mode_count?: number;
+  distribution?: Record<string, number>;
+  // Open-ended
+  avg_word_count?: number;
+  min_word_count?: number;
+  max_word_count?: number;
+  // Multi-select
+  avg_selections_per_respondent?: number;
+  // Error case
+  error?: string;
+}
+
+export interface QualitySummary {
+  scored: boolean;
+  message?: string;
+  total_scored?: number;
+  passed_count?: number;
+  failed_count?: number;
+  pass_rate?: number;
+  grade_breakdown?: {
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+  };
+  avg_composite_score?: number;
+  top_issues?: Array<{ issue: string; count: number }>;
+}
+
 export interface AnalysisResult {
   survey_schema_id: string;
   summary: string;
   findings: AnalysisFinding[];
+  descriptive_stats: DescriptiveStat[];
+  quality_summary: QualitySummary;
   stats: {
     total_responses: number;
     pairs_analyzed: number;
