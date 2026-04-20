@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, Float, String, Text
+from sqlalchemy import Boolean, DateTime, Float, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from src.shared_kernel import Base
@@ -47,5 +47,31 @@ class ExecutiveSummaryModel(Base):
     llm_model_used: Mapped[str] = mapped_column(String(100), nullable=False)
     quality_filter_applied: Mapped[bool] = mapped_column(Boolean, default=False)
     generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class PinnedInsightModel(Base):
+    __tablename__ = 'pinned_insights'
+    __table_args__ = {'schema': 'analytics'}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    survey_schema_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+
+    # The user's question that generated this response
+    source_question: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # The assistant's text content (always present)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional chart data — preserved verbatim from the chat response
+    chart_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chart_data: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    chart_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # User-provided note (optional, for Phase 6 — users can annotate pins)
+    user_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    pinned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
