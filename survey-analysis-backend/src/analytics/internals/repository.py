@@ -2,12 +2,12 @@
 
 import logging
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared_kernel import CorrelationResultRecord, InsightRecord, InsightSeverity
 from src.analytics.models.orm import (
-    CorrelationResultModel, ExecutiveSummaryModel, InsightModel,
+    CorrelationResultModel, ExecutiveSummaryModel, InsightModel, PinnedInsightModel
 )
 
 logger = logging.getLogger(__name__)
@@ -128,3 +128,55 @@ class AnalyticsRepository:
             "quality_filter_applied": r.quality_filter_applied,
             "generated_at": r.generated_at.isoformat(),
         }
+
+    # ── Pinned Insights ──────────────────────────
+
+    async def create_pin(
+        self,
+        survey_schema_id: UUID,
+        source_question: str,
+        content: str,
+        chart_code: str | None = None,
+        chart_data: list | None = None,
+        chart_type: str | None = None,
+        user_note: str | None = None,
+    ) -> PinnedInsightModel:
+        """Insert a new pinned insight and return the saved model."""
+        model = PinnedInsightModel(
+            survey_schema_id=survey_schema_id,
+            source_question=source_question,
+            content=content,
+            chart_code=chart_code,
+            chart_data=chart_data,
+            chart_type=chart_type,
+            user_note=user_note,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return model
+
+    async def get_pins(self, survey_schema_id: UUID) -> list[PinnedInsightModel]:
+        """Fetch all pinned insights for a survey, newest first."""
+        stmt = select(PinnedInsightModel).where(
+            PinnedInsightModel.survey_schema_id == survey_schema_id
+        ).order_by(PinnedInsightModel.pinned_at.desc())
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def delete_pin(self, pin_id: UUID) -> bool:
+        """Delete a pinned insight by its ID. Returns True if deleted, False if not found."""
+        stmt = delete(PinnedInsightModel).where(PinnedInsightModel.id == pin_id)
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount > 0
+
+    async def update_pin_note(self, pin_id: UUID, user_note: str | None) -> PinnedInsightModel | None:
+        """Update the user_note field of a pinned insight."""
+        stmt = select(PinnedInsightModel).where(PinnedInsightModel.id == pin_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if not model:
+            return None
+        model.user_note = user_note
+        await self._session.flush()
+        return model
