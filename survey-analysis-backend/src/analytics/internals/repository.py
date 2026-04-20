@@ -1,13 +1,15 @@
 """Analytics — Internal Repository. Data access for analytics-owned tables."""
 
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared_kernel import CorrelationResultRecord, InsightRecord, InsightSeverity
 from src.analytics.models.orm import (
-    CorrelationResultModel, ExecutiveSummaryModel, InsightModel, PinnedInsightModel
+    CorrelationResultModel, ExecutiveSummaryModel, InsightModel,
+    PinnedInsightModel, ReportModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,3 +182,84 @@ class AnalyticsRepository:
         model.user_note = user_note
         await self._session.flush()
         return model
+
+    # ── Reports ──────────────────────────────────
+
+    async def create_report(
+        self,
+        survey_schema_id: UUID,
+        title: str,
+        sections: dict,
+        source_data: dict,
+        chart_images: dict,
+    ) -> ReportModel:
+        """Insert a new report and return the saved model."""
+        model = ReportModel(
+            survey_schema_id=survey_schema_id,
+            title=title,
+            sections=sections,
+            source_data=source_data,
+            chart_images=chart_images,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return model
+
+    async def get_report(self, report_id: UUID) -> ReportModel | None:
+        """Fetch a single report by its primary key."""
+        stmt = select(ReportModel).where(ReportModel.id == report_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_latest_report(self, survey_schema_id: UUID) -> ReportModel | None:
+        """Fetch the most recent report for a survey (ordered by generated_at DESC)."""
+        stmt = (
+            select(ReportModel)
+            .where(ReportModel.survey_schema_id == survey_schema_id)
+            .order_by(ReportModel.generated_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_report_section(
+        self,
+        report_id: UUID,
+        section_key: str,
+        content: str,
+    ) -> ReportModel | None:
+        """Update a single section's content. Also updates updated_at timestamp."""
+        stmt = select(ReportModel).where(ReportModel.id == report_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if not model:
+            return None
+        updated_sections = dict(model.sections)
+        updated_sections[section_key] = content
+        model.sections = updated_sections
+        model.updated_at = datetime.now(timezone.utc)
+        await self._session.flush()
+        return model
+
+    async def update_report_chart_images(
+        self,
+        report_id: UUID,
+        chart_images: dict,
+    ) -> ReportModel | None:
+        """Replace the chart_images dict on a report."""
+        stmt = select(ReportModel).where(ReportModel.id == report_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if not model:
+            return None
+        model.chart_images = chart_images
+        model.updated_at = datetime.now(timezone.utc)
+        await self._session.flush()
+        return model
+
+    async def delete_report(self, report_id: UUID) -> bool:
+        """Delete a report by its ID. Returns True if deleted, False if not found."""
+        stmt = delete(ReportModel).where(ReportModel.id == report_id)
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount > 0
