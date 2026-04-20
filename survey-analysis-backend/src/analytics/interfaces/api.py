@@ -21,6 +21,9 @@ from src.analytics.internals.repository import AnalyticsRepository
 from src.analytics.internals.findings_generator import (
     generate_findings, generate_findings_summary_for_llm,
 )
+from src.analytics.internals.report_generator import (
+    generate_full_report, regenerate_section,
+)
 from src.analytics.internals.descriptive_stats import generate_descriptive_stats
 from src.analytics.internals.quality_summary import generate_quality_summary
 
@@ -151,6 +154,26 @@ class AnalyticsService:
 
     async def get_latest_summary(self, survey_schema_id: UUID) -> dict | None:
         return await self._repo.get_latest_summary(survey_schema_id)
+
+    async def _build_report_context(self, survey_schema_id: UUID) -> dict:
+        """Build the context dict for report generation from current analysis state."""
+        # Call analyze_full's logic to get findings, descriptive_stats, quality_summary, pinned_insights
+        analysis = await self.analyze_full(survey_schema_id)
+        # Fetch the survey schema for title, questions
+        from src.ingestion.interfaces.api import IngestionService
+        ing = IngestionService(self._db)
+        schema = await ing.get_survey_schema(survey_schema_id)
+        return {
+            'survey_title': schema.title if schema else 'Untitled Survey',
+            'total_responses': analysis['stats']['total_responses'],
+            'significant_findings_count': analysis['stats']['significant_findings'],
+            'analysis_summary': analysis['summary'],
+            'findings': analysis['findings'],
+            'descriptive_stats': analysis['descriptive_stats'],
+            'quality_summary': analysis['quality_summary'],
+            'pinned_insights': analysis['pinned_insights'],
+            'question_count': len(schema.question_definitions) if schema else 0,
+        }
 
     def _detect_type(self, values: list) -> str:
         """Simple type detection: numeric → INTERVAL, else NOMINAL."""
@@ -406,3 +429,126 @@ async def update_pin_note(
     if not updated:
         raise HTTPException(404, "Pin not found")
     return updated
+
+# ── Reports ───────────────────────────────────────
+
+class GenerateReportRequest(BaseModel):
+    survey_schema_id: UUID
+    title: str | None = None  # Optional custom title, defaults to 'Analysis Report — {survey_title}'
+    chart_images: dict = {}  # {pin_id_or_finding_id: base64_data_url}
+
+class ReportResponse(BaseModel):
+    id: UUID
+    survey_schema_id: UUID
+    title: str
+    sections: dict
+    source_data: dict
+    chart_images: dict
+    status: str
+    generated_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+class UpdateSectionRequest(BaseModel):
+    content: str
+
+class RegenerateSectionRequest(BaseModel):
+    section_key: str
+
+class UpdateChartsRequest(BaseModel):
+    chart_images: dict
+
+@router.post("/reports/generate", response_model=ReportResponse)
+async def generate_report(
+    request: GenerateReportRequest, session: AsyncSession = Depends(get_db_session)
+):
+    service = AnalyticsService(session)
+    context = await service._build_report_context(request.survey_schema_id)
+    
+    sections = await generate_full_report(context)
+    title = request.title or f"Analysis Report — {context['survey_title']}"
+    
+    repo = AnalyticsRepository(session)
+    return await repo.create_report(
+        survey_schema_id=request.survey_schema_id,
+        title=title,
+        sections=sections,
+        source_data=context,
+        chart_images=request.chart_images,
+    )
+
+@router.get("/reports/latest/{survey_schema_id}", response_model=ReportResponse)
+async def get_latest_report(
+    survey_schema_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    report = await repo.get_latest_report(survey_schema_id)
+    if not report:
+        raise HTTPException(404, "No report found for this survey.")
+    return report
+
+@router.get("/reports/{report_id}", response_model=ReportResponse)
+async def get_report(
+    report_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    report = await repo.get_report(report_id)
+    if not report:
+        raise HTTPException(404, "Report not found.")
+    return report
+
+@router.patch("/reports/{report_id}/sections/{section_key}", response_model=ReportResponse)
+async def update_report_section(
+    report_id: UUID, section_key: str, request: UpdateSectionRequest, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    updated = await repo.update_report_section(report_id, section_key, request.content)
+    if not updated:
+        raise HTTPException(404, "Report not found.")
+    return updated
+
+@router.post("/reports/{report_id}/sections/{section_key}/regenerate", response_model=ReportResponse)
+async def regenerate_report_section(
+    report_id: UUID, section_key: str, request: RegenerateSectionRequest, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    report = await repo.get_report(report_id)
+    if not report:
+        raise HTTPException(404, "Report not found.")
+    
+    service = AnalyticsService(session)
+    context = await service._build_report_context(report.survey_schema_id)
+    
+    # Use request.section_key or from path, ideally request.section_key based on schema
+    key_to_regen = request.section_key if request.section_key else section_key
+    
+    try:
+        new_content = await regenerate_section(key_to_regen, context)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+        
+    updated = await repo.update_report_section(report_id, key_to_regen, new_content)
+    if not updated:
+        raise HTTPException(404, "Report not found.")
+    return updated
+
+@router.patch("/reports/{report_id}/charts", response_model=ReportResponse)
+async def update_report_charts(
+    report_id: UUID, request: UpdateChartsRequest, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    updated = await repo.update_report_chart_images(report_id, request.chart_images)
+    if not updated:
+        raise HTTPException(404, "Report not found.")
+    return updated
+
+@router.delete("/reports/{report_id}")
+async def delete_report(
+    report_id: UUID, session: AsyncSession = Depends(get_db_session)
+):
+    repo = AnalyticsRepository(session)
+    deleted = await repo.delete_report(report_id)
+    if not deleted:
+        raise HTTPException(404, "Report not found.")
+    return {"deleted": True, "id": str(report_id)}
