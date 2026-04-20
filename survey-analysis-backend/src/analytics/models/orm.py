@@ -75,3 +75,35 @@ class PinnedInsightModel(Base):
     pinned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class ReportModel(Base):
+    __tablename__ = 'reports'
+    __table_args__ = {'schema': 'analytics'}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    survey_schema_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # Section contents stored as JSON: {section_key: markdown_string}
+    # Keys: title_page, executive_summary, methodology, key_findings,
+    #       descriptive_statistics, quality_assessment, pinned_insights,
+    #       recommendations, conclusion
+    sections: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    # Snapshot of the analysis data used to generate this report (for regeneration)
+    source_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    # Chart images captured as base64 data URLs, keyed by pin ID or finding ID
+    chart_images: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='DRAFT')
+    # Values: DRAFT, FINALIZED
+
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
