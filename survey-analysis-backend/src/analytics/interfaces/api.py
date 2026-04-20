@@ -185,6 +185,7 @@ class AnalyticsService:
                     "scored": False,
                     "message": "No submissions found to analyze quality."
                 },
+                "pinned_insights": [],
                 "stats": {
                     "total_responses": 0,
                     "pairs_analyzed": 0,
@@ -204,6 +205,22 @@ class AnalyticsService:
             schema.question_definitions if schema else []
         )
         quality_summary = await generate_quality_summary(survey_schema_id, self._db)
+
+        # Step 3.5: Fetch Pinned Insights
+        pins = await self._repo.get_pins(survey_schema_id)
+        pinned_insights = [
+            {
+                'id': str(p.id),
+                'source_question': p.source_question,
+                'content': p.content,
+                'chart_code': p.chart_code,
+                'chart_data': p.chart_data,
+                'chart_type': p.chart_type,
+                'user_note': p.user_note,
+                'pinned_at': p.pinned_at.isoformat(),
+            }
+            for p in pins
+        ]
 
         # Step 4: Generate executive summary using plain-language findings
         findings_text = generate_findings_summary_for_llm(findings)
@@ -234,6 +251,7 @@ class AnalyticsService:
             "findings": findings,
             "descriptive_stats": descriptive_stats,
             "quality_summary": quality_summary,
+            "pinned_insights": pinned_insights,
             "stats": {
                 "total_responses": len(raw_data),
                 "pairs_analyzed": len(correlations),
