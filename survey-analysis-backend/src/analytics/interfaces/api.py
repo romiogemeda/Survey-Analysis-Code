@@ -19,6 +19,8 @@ from src.analytics.internals.repository import AnalyticsRepository
 from src.analytics.internals.findings_generator import (
     generate_findings, generate_findings_summary_for_llm,
 )
+from src.analytics.internals.descriptive_stats import generate_descriptive_stats
+from src.analytics.internals.quality_summary import generate_quality_summary
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
@@ -169,12 +171,18 @@ class AnalyticsService:
 
         subs = await ing.get_submissions(survey_schema_id, valid_only=True)
         raw_data = [s.raw_responses for s in subs]
+        schema = await ing.get_survey_schema(survey_schema_id)
 
         if not raw_data:
             return {
                 "survey_schema_id": str(survey_schema_id),
                 "summary": "No survey responses found. Upload data first to run analysis.",
                 "findings": [],
+                "descriptive_stats": [],
+                "quality_summary": {
+                    "scored": False,
+                    "message": "No submissions found to analyze quality."
+                },
                 "stats": {
                     "total_responses": 0,
                     "pairs_analyzed": 0,
@@ -188,7 +196,14 @@ class AnalyticsService:
         # Step 2: Generate plain-language findings
         findings = await generate_findings(correlations)
 
-        # Step 3: Generate executive summary using plain-language findings
+        # Step 3: Compute descriptive stats and quality summary
+        descriptive_stats = generate_descriptive_stats(
+            raw_data,
+            schema.question_definitions if schema else []
+        )
+        quality_summary = await generate_quality_summary(survey_schema_id, self._db)
+
+        # Step 4: Generate executive summary using plain-language findings
         findings_text = generate_findings_summary_for_llm(findings)
         prompt = (
             f"Survey has {len(raw_data)} responses.\n\n"
@@ -215,6 +230,8 @@ class AnalyticsService:
             "survey_schema_id": str(survey_schema_id),
             "summary": summary_response.content,
             "findings": findings,
+            "descriptive_stats": descriptive_stats,
+            "quality_summary": quality_summary,
             "stats": {
                 "total_responses": len(raw_data),
                 "pairs_analyzed": len(correlations),
