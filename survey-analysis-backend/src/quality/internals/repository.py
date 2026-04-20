@@ -84,3 +84,21 @@ class QualityRepository:
         )
         result = await self._session.execute(stmt)
         return [row[0] for row in result.all()]
+
+    async def get_scores_for_schema(self, schema_id: UUID) -> list[QualityScoreRecord]:
+        """Fetch all quality scores for submissions belonging to a survey schema."""
+        from src.ingestion.models.orm import SubmissionModel
+        stmt = (
+            select(QualityScoreModel)
+            .join(SubmissionModel, QualityScoreModel.submission_id == SubmissionModel.id)
+            .where(SubmissionModel.survey_schema_id == schema_id)
+        )
+        result = await self._session.execute(stmt)
+        return [
+            QualityScoreRecord(
+                id=r.id, submission_id=r.submission_id, grade=QualityGrade(r.grade),
+                speed_score=r.speed_score, variance_score=r.variance_score,
+                gibberish_score=r.gibberish_score, composite_score=r.composite_score,
+                scored_at=r.scored_at,
+            ) for r in result.scalars().all()
+        ]

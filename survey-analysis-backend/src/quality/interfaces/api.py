@@ -55,6 +55,10 @@ class QualityService:
     async def get_scores_for_survey(self, submission_ids: list[UUID]) -> list[QualityScoreRecord]:
         return await self._repo.get_scores_for_survey(submission_ids)
 
+    async def get_scores_for_schema(self, schema_id: UUID) -> list[QualityScoreRecord]:
+        """Fetch all quality scores for a given schema."""
+        return await self._repo.get_scores_for_schema(schema_id)
+
     async def filter_by_quality(
         self, submission_ids: list[UUID], min_grade: QualityGrade = QualityGrade.MEDIUM
     ) -> list[UUID]:
