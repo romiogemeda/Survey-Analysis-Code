@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
-import { analytics, pins } from "@/lib/api";
-import type { AnalysisResult, AnalysisFinding } from "@/types";
+import { analytics, pins, reports } from "@/lib/api";
+import type { AnalysisResult, AnalysisFinding, Report } from "@/types";
 import { cn, formatPValue } from "@/lib/utils";
 import DescriptiveStatsSection from "@/components/analysis/DescriptiveStatsSection";
 import QualitySummarySection from "@/components/analysis/QualitySummarySection";
 import { PinnedInsightsSection } from "@/components/analysis/PinnedInsightsSection";
 import ReportGenerator from "@/components/analysis/ReportGenerator";
-import { FileText } from "lucide-react";
+import { FileText, RotateCcw } from "lucide-react";
 
 // ── Loading Messages ────────────────────────────
 
@@ -141,7 +141,9 @@ export default function AnalyticsTab() {
   const [resultLoaded, setResultLoaded] = useState(false);
   const [running, setRunning] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
-  const [showReport, setShowReport] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [latestReport, setLatestReport] = useState<Report | null>(null);
+  const [checkingReport, setCheckingReport] = useState(false);
 
   const handleUnpin = async (pinId: string) => {
     try {
@@ -175,6 +177,17 @@ export default function AnalyticsTab() {
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSurvey?.id, resultLoaded]);
+
+  // Check for an existing draft report when analysis results load
+  useEffect(() => {
+    if (!activeSurvey || !resultLoaded) return;
+    setCheckingReport(true);
+    reports.getLatest(activeSurvey.id)
+      .then((r) => setLatestReport(r))
+      .catch(() => setLatestReport(null))
+      .finally(() => setCheckingReport(false));
+  }, [activeSurvey?.id, resultLoaded]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const handleAnalyze = async () => {
     if (!activeSurvey) {
@@ -348,23 +361,57 @@ export default function AnalyticsTab() {
         </div>
       )}
 
-      {/* Generate Report Button */}
-      <div className="flex justify-center pt-4 pb-2">
-        <button
-          onClick={() => setShowReport(true)}
-          className="btn-primary text-sm flex items-center gap-2 px-6 py-3 shadow-lg hover:shadow-xl transition-shadow"
-        >
-          <FileText size={16} />
-          Generate Report
-        </button>
+      {/* Generate Report CTA */}
+      <div className="card bg-gradient-to-br from-brand-50 to-white border-brand-100 text-center py-10 px-6">
+        <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-brand-100 border border-brand-200 flex items-center justify-center">
+          <FileText size={24} className="text-brand-600" />
+        </div>
+        <h3 className="text-lg font-display font-bold text-surface-800 mb-2">
+          Ready to share your findings?
+        </h3>
+        <p className="text-sm text-surface-500 max-w-md mx-auto mb-6 leading-relaxed">
+          Generate a polished report covering your analysis, findings, and pinned insights.
+          Review and edit before exporting as PDF.
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => setReportModalOpen(true)}
+            className="btn-primary text-sm flex items-center gap-2 px-6 py-2.5 shadow-lg hover:shadow-xl transition-shadow"
+          >
+            <FileText size={15} />
+            Generate Report
+          </button>
+          {latestReport && (
+            <button
+              onClick={() => setReportModalOpen(true)}
+              className="btn-secondary text-sm flex items-center gap-2 px-5 py-2.5"
+            >
+              <RotateCcw size={14} />
+              Resume Last Report
+            </button>
+          )}
+        </div>
+        {checkingReport && (
+          <p className="text-[11px] text-surface-400 mt-3 animate-pulse">
+            Checking for existing drafts…
+          </p>
+        )}
       </div>
 
       {/* Report Generator Overlay */}
-      {showReport && activeSurvey && result && (
+      {reportModalOpen && activeSurvey && result && (
         <ReportGenerator
           analysisResult={result}
           surveyId={activeSurvey.id}
-          onClose={() => setShowReport(false)}
+          onClose={() => {
+            setReportModalOpen(false);
+            // Refresh latest report status after close
+            if (activeSurvey) {
+              reports.getLatest(activeSurvey.id)
+                .then((r) => setLatestReport(r))
+                .catch(() => {});
+            }
+          }}
         />
       )}
     </div>
