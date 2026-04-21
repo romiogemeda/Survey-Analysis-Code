@@ -8,6 +8,7 @@ import { captureChartsById } from "@/lib/chart-capture";
 import type { AnalysisResult, Report, SectionKey } from "@/types";
 import { SECTION_KEYS, SECTION_TITLES } from "@/types";
 import ReportSection from "./ReportSection";
+import { exportReportAsPdf } from "@/lib/pdf-export";
 
 // ── Loading Messages ────────────────────────────
 
@@ -138,14 +139,19 @@ export default function ReportGenerator({
     }
   }, [report, titleDraft, addToast]);
 
-  // ── PDF Download placeholder ───────────────────
+  // ── PDF Download ───────────────────────────────
 
   const handleDownloadPdf = useCallback(async () => {
     if (!report) return;
     setState("exporting");
-    addToast("PDF export will be available in the next step", "info");
-    // PDF generation is implemented in Task 9
-    setTimeout(() => setState("preview"), 1500);
+    try {
+      const filename = `${report.title.replace(/[^a-z0-9_-]/gi, '_')}.pdf`;
+      await exportReportAsPdf(report, filename);
+      addToast("PDF downloaded", "success");
+    } catch {
+      addToast("PDF export failed", "error");
+    }
+    setState("preview");
   }, [report, addToast]);
 
   // ── Close handler ──────────────────────────────
