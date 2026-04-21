@@ -8,6 +8,8 @@ import { cn, formatPValue } from "@/lib/utils";
 import DescriptiveStatsSection from "@/components/analysis/DescriptiveStatsSection";
 import QualitySummarySection from "@/components/analysis/QualitySummarySection";
 import { PinnedInsightsSection } from "@/components/analysis/PinnedInsightsSection";
+import ReportGenerator from "@/components/analysis/ReportGenerator";
+import { FileText } from "lucide-react";
 
 // ── Loading Messages ────────────────────────────
 
@@ -139,6 +141,7 @@ export default function AnalyticsTab() {
   const [resultLoaded, setResultLoaded] = useState(false);
   const [running, setRunning] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
+  const [showReport, setShowReport] = useState(false);
 
   const handleUnpin = async (pinId: string) => {
     try {
@@ -343,6 +346,26 @@ export default function AnalyticsTab() {
             for patterns to emerge clearly. Consider collecting more responses and trying again.
           </p>
         </div>
+      )}
+
+      {/* Generate Report Button */}
+      <div className="flex justify-center pt-4 pb-2">
+        <button
+          onClick={() => setShowReport(true)}
+          className="btn-primary text-sm flex items-center gap-2 px-6 py-3 shadow-lg hover:shadow-xl transition-shadow"
+        >
+          <FileText size={16} />
+          Generate Report
+        </button>
+      </div>
+
+      {/* Report Generator Overlay */}
+      {showReport && activeSurvey && result && (
+        <ReportGenerator
+          analysisResult={result}
+          surveyId={activeSurvey.id}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );

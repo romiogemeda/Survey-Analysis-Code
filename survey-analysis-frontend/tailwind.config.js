@@ -53,6 +53,7 @@ module.exports = {
         "slide-up": "slideUp 0.4s ease-out",
         "slide-in-right": "slideInRight 0.3s ease-out",
         pulse: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        progress: "progress 2s ease-in-out infinite",
       },
       keyframes: {
         fadeIn: {
@@ -66,6 +67,11 @@ module.exports = {
         slideInRight: {
           "0%": { opacity: "0", transform: "translateX(16px)" },
           "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        progress: {
+          "0%": { width: "0%", marginLeft: "0%" },
+          "50%": { width: "60%", marginLeft: "20%" },
+          "100%": { width: "0%", marginLeft: "100%" },
         },
       },
     },
