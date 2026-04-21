@@ -296,3 +296,41 @@ export interface PromotionResult {
   promoted: number;
   survey_schema_id: string;
 }
+
+export interface Report {
+  id: string;
+  survey_schema_id: string;
+  title: string;
+  sections: Record<string, string>;
+  source_data: Record<string, unknown>;
+  chart_images: Record<string, string>;
+  status: 'DRAFT' | 'FINALIZED';
+  generated_at: string;
+  updated_at: string;
+}
+
+export const SECTION_KEYS = [
+  'title_page',
+  'executive_summary',
+  'methodology',
+  'key_findings',
+  'descriptive_statistics',
+  'quality_assessment',
+  'pinned_insights',
+  'recommendations',
+  'conclusion',
+] as const;
+
+export type SectionKey = typeof SECTION_KEYS[number];
+
+export const SECTION_TITLES: Record<SectionKey, string> = {
+  title_page: 'Title Page',
+  executive_summary: 'Executive Summary',
+  methodology: 'Methodology',
+  key_findings: 'Key Findings',
+  descriptive_statistics: 'Descriptive Statistics',
+  quality_assessment: 'Quality Assessment',
+  pinned_insights: 'Additional Insights',
+  recommendations: 'Recommendations',
+  conclusion: 'Conclusion',
+};

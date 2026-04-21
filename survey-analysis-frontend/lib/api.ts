@@ -26,6 +26,7 @@ import type {
   PromotionResult,
   PinnedInsight,
   CreatePinRequest,
+  Report,
 } from "@/types";
 
 const BASE = "/api/v1";
@@ -311,6 +312,57 @@ export const pins = {
     });
   },
 };
+
+// ── Reports ──────────────────────────────────────
+
+export const reports = {
+  generate(requestData: {
+    survey_schema_id: string;
+    title?: string;
+    chart_images?: Record<string, string>;
+  }) {
+    return request<Report>(`${BASE}/analytics/reports/generate`, {
+      method: "POST",
+      body: JSON.stringify(requestData),
+    });
+  },
+  getLatest(schemaId: string) {
+    return request<Report>(`${BASE}/analytics/reports/latest/${schemaId}`);
+  },
+  get(reportId: string) {
+    return request<Report>(`${BASE}/analytics/reports/${reportId}`);
+  },
+  updateSection(reportId: string, sectionKey: string, content: string) {
+    return request<Report>(
+      `${BASE}/analytics/reports/${reportId}/sections/${sectionKey}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ content }),
+      }
+    );
+  },
+  regenerateSection(reportId: string, sectionKey: string) {
+    return request<Report>(
+      `${BASE}/analytics/reports/${reportId}/sections/${sectionKey}/regenerate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ section_key: sectionKey }),
+      }
+    );
+  },
+  updateCharts(reportId: string, chartImages: Record<string, string>) {
+    return request<Report>(`${BASE}/analytics/reports/${reportId}/charts`, {
+      method: "PATCH",
+      body: JSON.stringify({ chart_images: chartImages }),
+    });
+  },
+  delete(reportId: string) {
+    return request<void>(`${BASE}/analytics/reports/${reportId}`, {
+      method: "DELETE",
+    });
+  },
+};
+
 
 // ── System ───────────────────────────────────────
 
