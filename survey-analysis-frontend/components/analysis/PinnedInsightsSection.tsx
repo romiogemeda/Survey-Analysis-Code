@@ -102,7 +102,7 @@ export function PinnedInsightsSection({ pins, onUnpin, onUpdateNote }: PinnedIns
 
             {/* Chart */}
             {pin.chart_code && pin.chart_data && (
-              <div className="mb-4 bg-white border border-surface-200 rounded-lg overflow-hidden shadow-sm">
+              <div id={`chart-pin-${pin.id}`} className="mb-4 bg-white border border-surface-200 rounded-lg overflow-hidden shadow-sm">
                 <DynamicChart
                   code={pin.chart_code}
                   data={pin.chart_data as Record<string, unknown>[]}
