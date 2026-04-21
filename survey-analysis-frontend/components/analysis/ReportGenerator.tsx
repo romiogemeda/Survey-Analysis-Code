@@ -27,22 +27,26 @@ type GeneratorState = "idle" | "generating" | "preview" | "exporting";
 interface ReportGeneratorProps {
   analysisResult: AnalysisResult;
   surveyId: string;
+  existingReport?: Report;
   onClose: () => void;
 }
 
 export default function ReportGenerator({
   analysisResult,
   surveyId,
+  existingReport,
   onClose,
 }: ReportGeneratorProps) {
   const { addToast } = useAppStore();
 
-  const [state, setState] = useState<GeneratorState>("generating");
-  const [report, setReport] = useState<Report | null>(null);
+  const [state, setState] = useState<GeneratorState>(
+    existingReport ? "preview" : "generating"
+  );
+  const [report, setReport] = useState<Report | null>(existingReport || null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(GENERATING_MESSAGES[0]);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
+  const [titleDraft, setTitleDraft] = useState(existingReport?.title || "");
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   // ── Generate report on mount ───────────────────
@@ -90,9 +94,11 @@ export default function ReportGenerator({
   }, [analysisResult, surveyId, addToast]);
 
   useEffect(() => {
-    generateReport();
+    if (!existingReport) {
+      generateReport();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [existingReport, generateReport]);
 
   // ── Section handlers ───────────────────────────
 

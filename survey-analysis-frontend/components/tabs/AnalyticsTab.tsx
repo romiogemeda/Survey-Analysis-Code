@@ -142,6 +142,7 @@ export default function AnalyticsTab() {
   const [running, setRunning] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [resumeMode, setResumeMode] = useState(false);
   const [latestReport, setLatestReport] = useState<Report | null>(null);
   const [checkingReport, setCheckingReport] = useState(false);
 
@@ -375,7 +376,10 @@ export default function AnalyticsTab() {
         </p>
         <div className="flex items-center justify-center gap-3">
           <button
-            onClick={() => setReportModalOpen(true)}
+            onClick={() => {
+              setResumeMode(false);
+              setReportModalOpen(true);
+            }}
             className="btn-primary text-sm flex items-center gap-2 px-6 py-2.5 shadow-lg hover:shadow-xl transition-shadow"
           >
             <FileText size={15} />
@@ -383,7 +387,10 @@ export default function AnalyticsTab() {
           </button>
           {latestReport && (
             <button
-              onClick={() => setReportModalOpen(true)}
+              onClick={() => {
+                setResumeMode(true);
+                setReportModalOpen(true);
+              }}
               className="btn-secondary text-sm flex items-center gap-2 px-5 py-2.5"
             >
               <RotateCcw size={14} />
@@ -403,8 +410,10 @@ export default function AnalyticsTab() {
         <ReportGenerator
           analysisResult={result}
           surveyId={activeSurvey.id}
+          existingReport={resumeMode && latestReport ? latestReport : undefined}
           onClose={() => {
             setReportModalOpen(false);
+            setResumeMode(false);
             // Refresh latest report status after close
             if (activeSurvey) {
               reports.getLatest(activeSurvey.id)
