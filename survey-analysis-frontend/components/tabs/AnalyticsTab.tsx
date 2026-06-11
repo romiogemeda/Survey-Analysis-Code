@@ -230,8 +230,26 @@ export default function AnalyticsTab() {
     );
   }
 
+  // ── Loading state ──
+  if (running) {
+    return (
+      <div className="animate-fade-in flex flex-col items-center justify-center py-24">
+        <div className="relative w-16 h-16 mb-6">
+          <div className="absolute inset-0 rounded-full border-4 border-surface-100" />
+          <div className="absolute inset-0 rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
+        </div>
+        <p className="text-sm text-surface-600 font-medium animate-pulse">
+          {loadingMsg}
+        </p>
+        <p className="text-xs text-surface-400 mt-2">
+          This may take a minute for large datasets
+        </p>
+      </div>
+    );
+  }
+
   // ── Pre-analysis state ──
-  if (!result && !running) {
+  if (!result) {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center py-24">
         <div className="text-center max-w-md">
@@ -251,24 +269,6 @@ export default function AnalyticsTab() {
             Analyze My Data
           </button>
         </div>
-      </div>
-    );
-  }
-
-  // ── Loading state ──
-  if (running) {
-    return (
-      <div className="animate-fade-in flex flex-col items-center justify-center py-24">
-        <div className="relative w-16 h-16 mb-6">
-          <div className="absolute inset-0 rounded-full border-4 border-surface-100" />
-          <div className="absolute inset-0 rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
-        </div>
-        <p className="text-sm text-surface-600 font-medium animate-pulse">
-          {loadingMsg}
-        </p>
-        <p className="text-xs text-surface-400 mt-2">
-          This may take a minute for large datasets
-        </p>
       </div>
     );
   }

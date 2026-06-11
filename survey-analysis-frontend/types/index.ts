@@ -121,6 +121,7 @@ export interface ChatSession {
   session_id: string;
   survey_schema_id: string;
   session_type: ChatSessionType;
+  persona_id?: string | null;
 }
 
 export interface ChatMessage {
@@ -284,17 +285,6 @@ export interface AnalysisResult {
     pairs_analyzed: number;
     significant_findings: number;
   };
-}
-
-export interface RunBatchRequest {
-  survey_schema_id: string;
-  items: Array<{ persona_id: string; num_responses: number }>;
-  concurrency?: number;
-}
-
-export interface PromotionResult {
-  promoted: number;
-  survey_schema_id: string;
 }
 
 export interface Report {

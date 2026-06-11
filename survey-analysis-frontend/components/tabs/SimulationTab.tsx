@@ -200,7 +200,10 @@ export default function SimulationTab() {
         session_type: "PERSONA_INTERVIEW",
         persona_id: selectedInterviewPersona,
       });
-      setInterviewSession(s);
+      setInterviewSession({
+        ...s,
+        persona_id: selectedInterviewPersona
+      });
       setInterviewMessages([]);
       addToast("Interview session started", "success");
     } catch {

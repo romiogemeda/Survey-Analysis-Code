@@ -132,7 +132,7 @@ function cleanLLMCode(raw: string): string {
 
 // ── Transpile & Compile ─────────────────────────
 
-function compileChartCode(rawCode: string): Function | null {
+function compileChartCode(rawCode: string): React.ComponentType<any> | null {
   /**
    * Key insight: We wrap the LLM code into a full function body
    * BEFORE transpiling with Babel. This way Babel produces valid

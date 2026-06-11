@@ -48,6 +48,7 @@ function DonutChart({ chart }: { chart: ChartPayload }) {
   }));
   const isSentiment = chart.chart_type === "SENTIMENT_DONUT";
   const isPercent = isSentiment;
+  const metadata = chart.metadata as Record<string, any> | undefined;
 
   return (
     <div className="h-[260px]">
@@ -80,9 +81,9 @@ function DonutChart({ chart }: { chart: ChartPayload }) {
           />
         </PieChart>
       </ResponsiveContainer>
-      {isSentiment && chart.metadata?.avg_polarity !== undefined && (
+      {isSentiment && metadata?.avg_polarity !== undefined && (
         <p className="text-center text-xs text-surface-500 -mt-2">
-          Average polarity: {chart.metadata.avg_polarity}
+          Average polarity: {metadata.avg_polarity}
         </p>
       )}
     </div>
@@ -94,6 +95,7 @@ function HorizontalBarChart({ chart }: { chart: ChartPayload }) {
     name: label,
     value: chart.values[i] || 0,
   }));
+  const metadata = chart.metadata as Record<string, any> | undefined;
 
   return (
     <div className="h-[260px]">
@@ -124,9 +126,9 @@ function HorizontalBarChart({ chart }: { chart: ChartPayload }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      {chart.metadata?.total_categories && (
+      {metadata?.total_categories && (
         <p className="text-xs text-surface-400 mt-1">
-          Showing top {Math.min(10, chart.labels.length)} of {chart.metadata.total_categories} categories
+          Showing top {Math.min(10, chart.labels.length)} of {metadata.total_categories} categories
         </p>
       )}
     </div>
@@ -175,6 +177,7 @@ function LikertBarChart({ chart }: { chart: ChartPayload }) {
     value: chart.values[i] || 0,
   }));
   const total = data.reduce((sum, d) => sum + d.value, 0);
+  const metadata = chart.metadata as Record<string, any> | undefined;
 
   return (
     <div className="h-[260px]">
@@ -207,9 +210,9 @@ function LikertBarChart({ chart }: { chart: ChartPayload }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      {chart.metadata?.scale_min !== undefined && (
+      {metadata?.scale_min !== undefined && (
         <p className="text-xs text-surface-400 mt-1">
-          Likert scale: {chart.metadata.scale_min} – {chart.metadata.scale_max}
+          Likert scale: {metadata.scale_min} – {metadata.scale_max}
         </p>
       )}
     </div>
@@ -345,6 +348,7 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
     SENTIMENT_DONUT: "Sentiment",
     WORD_FREQ_BAR: "Word Frequency",
   };
+  const metadata = chart.metadata as Record<string, any> | undefined;
 
   return (
     <div className="card-padded animate-slide-up">
@@ -378,11 +382,11 @@ function SurveyChart({ chart }: { chart: ChartPayload }) {
 
       {chart.chart_type === "BOX_PLOT" && <BoxPlotChart chart={chart} />}
 
-      {chart.data_type === "MULTI_SELECT" && chart.metadata?.total_respondents && (
+      {chart.data_type === "MULTI_SELECT" && metadata?.total_respondents && (
         <div className="flex flex-wrap gap-4 mt-2 text-xs text-surface-500">
-          <span>{chart.metadata.total_respondents} respondents</span>
-          <span>{chart.metadata.unique_options} unique options</span>
-          <span>Avg {chart.metadata.avg_selections_per_respondent} selections each</span>
+          <span>{metadata.total_respondents} respondents</span>
+          <span>{metadata.unique_options} unique options</span>
+          <span>Avg {metadata.avg_selections_per_respondent} selections each</span>
         </div>
       )}
     </div>
