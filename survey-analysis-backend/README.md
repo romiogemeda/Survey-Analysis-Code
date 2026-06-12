@@ -54,9 +54,17 @@ REDIS_URL=redis://localhost:6379/0
 > Without this, the browser will block all API requests from the frontend.
 
 **Verify:** Confirm your `.env` exists and the three required fields are non-empty:
+
 ```bash
+# macOS / Linux
 grep -E "OPENROUTER_API_KEY|LLM_DEFAULT_MODEL|LLM_FALLBACK_MODEL" .env
 ```
+
+```powershell
+# Windows PowerShell
+Select-String -Path .env -Pattern "OPENROUTER_API_KEY|LLM_DEFAULT_MODEL|LLM_FALLBACK_MODEL"
+```
+
 You should see all three lines with real values (not the placeholder `sk-or-v1-your-key-here`).
 
 ---

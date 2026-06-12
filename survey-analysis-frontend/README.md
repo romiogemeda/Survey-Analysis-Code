@@ -28,15 +28,25 @@ Using a different Node version risks silent native module mismatches, broken loc
 
 ### Step 1 — Switch to Node 22
 
+**macOS / Linux** — nvm reads `.nvmrc` automatically:
 ```bash
 nvm use
 ```
 
-`nvm` will read `.nvmrc` and switch to Node 22. If it is not installed yet:
+**Windows** — nvm for Windows requires an explicit version argument:
+```powershell
+nvm use 22
+```
 
+If Node 22 is not installed yet:
 ```bash
+# macOS / Linux
 nvm install 22
 nvm use
+
+# Windows
+nvm install 22.20.0
+nvm use 22
 ```
 
 **Verify:**
