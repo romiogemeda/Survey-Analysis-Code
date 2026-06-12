@@ -131,6 +131,19 @@ The backend URL is hardcoded in `next.config.js`. If your backend runs on a diff
 
 ---
 
+## Updating to the Latest Code
+
+When new commits land on `main`, pull and re-sync dependencies:
+
+```bash
+git pull
+npm ci    # re-syncs dependencies in case package-lock.json changed
+```
+
+`npm ci` is necessary (not just `npm install`) because a pulled commit may have updated `package-lock.json`. Running `npm ci` ensures your local `node_modules` exactly matches the lockfile.
+
+---
+
 ## Troubleshooting
 
 ### Wrong Node version
