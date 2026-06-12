@@ -181,6 +181,19 @@ celery -A workers.celery_app worker --loglevel=info -Q analytics,simulation
 
 ---
 
+## Updating to the Latest Code
+
+When new commits land on `main`, pull the latest changes and rebuild the Docker images to pick up any dependency or code changes:
+
+```bash
+git pull
+docker compose up --build -d
+```
+
+`--build` ensures the application image is rebuilt if `requirements.txt` or the `Dockerfile` has changed. Skipping it after a dependency update will leave the old image running.
+
+---
+
 ## Troubleshooting
 
 ### Server crashes immediately on startup — Pydantic validation error

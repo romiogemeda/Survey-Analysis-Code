@@ -34,6 +34,19 @@ Survey Analysis Code/
 
 Follow these steps in order. Each step links to the full README for that component.
 
+### 0. Clone the repository
+
+> **Do not download a ZIP.** A ZIP snapshot will not receive updates via `git pull` and may already be stale by the time you extract it. Clone the repository instead.
+
+```bash
+git clone <repo-url>
+cd <repo-name>
+```
+
+Replace `<repo-url>` with the HTTPS or SSH URL from the repository host (e.g. GitHub), and `<repo-name>` with the directory it creates.
+
+---
+
 ### 1. Start the backend
 
 See [`survey-analysis-backend/README.md`](survey-analysis-backend/README.md) for full details.
